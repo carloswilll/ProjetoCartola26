@@ -3,3 +3,6 @@ pandas
 plotly
 requests
 supabase
+scikit-learn
+pulp
+numpy
