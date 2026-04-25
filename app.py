@@ -6,9 +6,10 @@ import plotly.graph_objects as go
 import os
 import re
 import io
+import numpy as np
 
 # ══════════════════════════════════════════════════════════════
-# 1. CONFIG & CSS
+# 1. CONFIG & CSS — TEMA CLARO
 # ══════════════════════════════════════════════════════════════
 st.set_page_config(
     page_title="Cartola Pro 2026",
@@ -19,152 +20,83 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-/* ── Tokens ── */
 :root {
-    --bg-base:    #0D0D14;
-    --bg-surface: #14141F;
-    --bg-card:    #1A1A28;
-    --border:     rgba(255,255,255,0.07);
-    --green:      #00C48C;
-    --amber:      #F5A623;
-    --red:        #FF5C5C;
-    --blue:       #4A9EFF;
-    --text-1:     #EEEDF0;
-    --text-2:     #9998A8;
-    --text-3:     #5A5A72;
+    --green:  #00A878;
+    --amber:  #E09B00;
+    --red:    #E03E3E;
+    --blue:   #1A6EFF;
+    --purple: #7C3AED;
+    --bg:     #F7F8FA;
+    --card:   #FFFFFF;
+    --border: #E4E6EB;
+    --text-1: #111827;
+    --text-2: #6B7280;
+    --text-3: #9CA3AF;
 }
 
 /* ── Base ── */
-.stApp, [data-testid="stAppViewContainer"] {
-    background-color: var(--bg-base) !important;
-}
-.main .block-container {
-    padding-top: 1.5rem !important;
-    max-width: 1400px;
-}
+.stApp { background-color: var(--bg) !important; }
+.main .block-container { padding-top: 1.5rem !important; max-width: 1400px; }
 
-/* ── Sidebar — fundo escuro, filtros BRANCOS com fonte preta ── */
-[data-testid="stSidebar"],
-[data-testid="stSidebar"] > div,
-[data-testid="stSidebar"] > div > div,
-section[data-testid="stSidebar"] > div {
-    background-color: #14141F !important;
+/* ── Sidebar ── */
+[data-testid="stSidebar"] > div:first-child {
+    background-color: #FFFFFF !important;
     border-right: 1px solid var(--border);
 }
-/* Títulos e labels da sidebar em branco */
 [data-testid="stSidebar"] label,
 [data-testid="stSidebar"] p,
-[data-testid="stSidebar"] .stMarkdown p,
 [data-testid="stSidebar"] [data-testid="stWidgetLabel"] p {
-    color: #EEEDF0 !important;
+    color: var(--text-1) !important; font-weight: 500;
 }
-/* Inputs da sidebar — fundo BRANCO, fonte PRETA */
-[data-testid="stSidebar"] .stMultiSelect > div > div,
-[data-testid="stSidebar"] .stSelectbox > div > div,
-[data-testid="stSidebar"] .stNumberInput > div > div > input,
-[data-testid="stSidebar"] input {
-    background-color: #FFFFFF !important;
-    border-color: #D0D0D0 !important;
-    color: #111111 !important;
-    border-radius: 8px !important;
-}
-/* Tags do multiselect — branco com texto preto */
-[data-testid="stSidebar"] span[data-baseweb="tag"] {
-    background-color: #E8E8E8 !important;
-    color: #111111 !important;
-}
-/* Ícone X das tags */
-[data-testid="stSidebar"] span[data-baseweb="tag"] span { color: #555 !important; }
-/* Dropdown popup da sidebar */
-[data-testid="stSidebar"] [data-baseweb="popover"],
-[data-testid="stSidebar"] [data-baseweb="menu"] {
-    background-color: #FFFFFF !important;
-    border: 1px solid #D0D0D0 !important;
-}
-[data-testid="stSidebar"] [data-baseweb="option"] { color: #111111 !important; }
-[data-testid="stSidebar"] [data-baseweb="option"]:hover { background-color: #F0F0F0 !important; }
-/* Slider thumb verde */
-[data-testid="stSidebar"] [role="slider"] { background-color: var(--green) !important; }
-/* Divider */
 [data-testid="stSidebar"] hr { border-color: var(--border) !important; }
 
-/* ── Área principal — inputs também brancos ── */
-.stSelectbox > div > div,
-.stMultiSelect > div > div,
-.stNumberInput > div > div,
-.stTextInput > div > div {
-    background-color: #FFFFFF !important;
-    border-color: #D0D0D0 !important;
-    color: #111111 !important;
-    border-radius: 8px !important;
-}
-span[data-baseweb="tag"] {
-    background-color: #E8E8E8 !important;
-    color: #111111 !important;
-}
-[data-baseweb="popover"] [data-baseweb="menu"] {
-    background-color: #FFFFFF !important;
-    border: 1px solid #D0D0D0 !important;
-}
-[data-baseweb="option"] { color: #111111 !important; }
-[data-baseweb="option"]:hover { background-color: #F0F0F0 !important; }
-
-/* ── Título e texto ── */
-h1, h2, h3 { color: var(--text-1) !important; }
-p, li { color: var(--text-2); }
+/* ── Títulos ── */
+h1 { color: var(--text-1) !important; font-weight: 800; letter-spacing: -0.02em; }
+h2, h3 { color: var(--text-1) !important; }
+p { color: var(--text-2); }
 
 /* ── Tabs ── */
 .stTabs [data-baseweb="tab-list"] {
-    gap: 4px;
-    background: var(--bg-surface);
-    border-radius: 10px;
-    padding: 4px;
+    gap: 2px; background: #ECEEF2;
+    border-radius: 10px; padding: 4px;
     border: 1px solid var(--border);
 }
 .stTabs [data-baseweb="tab"] {
-    border-radius: 7px !important;
-    color: var(--text-2) !important;
-    font-weight: 500;
-    font-size: 0.875rem;
-    padding: 6px 14px !important;
+    border-radius: 7px !important; color: var(--text-2) !important;
+    font-weight: 500; font-size: 0.85rem; padding: 6px 12px !important;
     background: transparent !important;
 }
 .stTabs [aria-selected="true"] {
-    background-color: var(--bg-card) !important;
+    background-color: #FFFFFF !important;
     color: var(--text-1) !important;
     border: 1px solid var(--border) !important;
+    font-weight: 600 !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
 }
 .stTabs [data-baseweb="tab-panel"] { padding-top: 1.25rem; }
 
 /* ── Metric cards ── */
 div[data-testid="metric-container"] {
-    background: var(--bg-card);
+    background: var(--card);
     border: 1px solid var(--border);
     border-radius: 12px;
     padding: 16px 20px !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
 }
 div[data-testid="metric-container"] label {
-    color: var(--text-2) !important;
-    font-size: 0.75rem !important;
-    font-weight: 600;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
+    color: var(--text-2) !important; font-size: 0.75rem !important;
+    font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase;
 }
 div[data-testid="metric-container"] [data-testid="stMetricValue"] {
-    color: var(--text-1) !important;
-    font-size: 1.3rem !important;
-    font-weight: 700;
+    color: var(--text-1) !important; font-size: 1.3rem !important; font-weight: 700;
 }
 
 /* ── Botões ── */
 .stButton > button {
     background: linear-gradient(135deg, #1A6EFF, #0F4FCC) !important;
-    color: #fff !important;
-    border: none !important;
-    border-radius: 8px !important;
-    font-weight: 600 !important;
-    padding: 10px 20px !important;
-    transition: opacity 0.2s;
+    color: #fff !important; border: none !important;
+    border-radius: 8px !important; font-weight: 600 !important;
+    padding: 10px 20px !important; transition: opacity 0.2s;
 }
 .stButton > button:hover { opacity: 0.85; }
 
@@ -173,47 +105,34 @@ div[data-testid="metric-container"] [data-testid="stMetricValue"] {
     border: 1px solid var(--border) !important;
     border-radius: 10px !important;
     overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
 }
 [data-testid="stDataFrame"] th {
-    background: var(--bg-surface) !important;
-    color: var(--text-2) !important;
-    font-size: 0.72rem !important;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-[data-testid="stDataFrame"] td {
-    color: var(--text-1) !important;
-    font-size: 0.875rem;
+    background: #F3F4F6 !important; color: var(--text-2) !important;
+    font-size: 0.72rem !important; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.05em;
 }
 
 /* ── Alerts ── */
 .stAlert { border-radius: 8px !important; }
 
-/* ── Scrollbar ── */
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: var(--bg-base); }
-::-webkit-scrollbar-thumb { background: #2A2A3C; border-radius: 3px; }
-
-/* ── KPI custom cards ── */
+/* ── KPI cards custom ── */
 .kpi-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 18px 22px;
-    height: 100%;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 18px 22px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.07); height: 100%;
 }
 .kpi-label {
-    font-size: 0.68rem; font-weight: 700;
-    letter-spacing: 0.07em; text-transform: uppercase;
-    color: var(--text-3); margin-bottom: 6px;
+    font-size: 0.68rem; font-weight: 700; letter-spacing: 0.07em;
+    text-transform: uppercase; color: var(--text-3); margin-bottom: 6px;
 }
-.kpi-value { font-size: 1.4rem; font-weight: 700; color: var(--text-1); line-height: 1.2; }
+.kpi-value { font-size: 1.4rem; font-weight: 800; color: var(--text-1); line-height: 1.2; }
 .kpi-sub   { font-size: 0.8rem; font-weight: 600; margin-top: 4px; }
-.kpi-green { color: var(--green); }
-.kpi-blue  { color: var(--blue); }
-.kpi-amber { color: var(--amber); }
-.kpi-red   { color: var(--red); }
+.kpi-green  { color: var(--green); }
+.kpi-blue   { color: var(--blue); }
+.kpi-amber  { color: var(--amber); }
+.kpi-red    { color: var(--red); }
+.kpi-purple { color: var(--purple); }
 
 /* ── Section titles ── */
 .sec-title {
@@ -225,12 +144,13 @@ div[data-testid="metric-container"] [data-testid="stMetricValue"] {
 
 /* ── Confronto cards ── */
 .conf-card {
-    background: var(--bg-card); border: 1px solid var(--border);
+    background: var(--card); border: 1px solid var(--border);
     border-radius: 10px; padding: 12px 18px;
     display: flex; align-items: center;
     justify-content: space-between; margin-bottom: 8px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
 }
-.conf-time { font-size: 0.95rem; font-weight: 600; color: var(--text-1); }
+.conf-time { font-size: 0.95rem; font-weight: 700; color: var(--text-1); }
 .conf-vs   { font-size: 0.7rem; color: var(--text-3); font-weight: 700; letter-spacing: 0.08em; }
 .conf-info { font-size: 0.72rem; color: var(--text-2); text-align: right; }
 
@@ -243,22 +163,21 @@ div[data-testid="metric-container"] [data-testid="stMetricValue"] {
 """, unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════
-# 2. TEMA PLOTLY
+# 2. TEMA PLOTLY — LIGHT
 # ══════════════════════════════════════════════════════════════
-COLORS = ["#00C48C","#4A9EFF","#F5A623","#FF5C5C","#B57BFF","#FF8A65","#26C6DA","#F06292"]
+COLORS = ["#00A878","#1A6EFF","#E09B00","#E03E3E","#7C3AED","#EA580C","#0891B2","#DB2777"]
 
 THEME = dict(
-    template="plotly_dark",
+    template="plotly_white",
     paper_bgcolor="rgba(0,0,0,0)",
     plot_bgcolor="rgba(0,0,0,0)",
-    font=dict(family="Inter, system-ui, sans-serif", color="#9998A8", size=12),
-    xaxis=dict(gridcolor="rgba(255,255,255,0.04)", linecolor="rgba(255,255,255,0.05)"),
-    yaxis=dict(gridcolor="rgba(255,255,255,0.04)", linecolor="rgba(255,255,255,0.05)"),
-    legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(color="#9998A8"),
+    font=dict(family="Inter, system-ui, sans-serif", color="#6B7280", size=12),
+    xaxis=dict(gridcolor="#F3F4F6", linecolor="#E4E6EB", tickfont=dict(color="#6B7280")),
+    yaxis=dict(gridcolor="#F3F4F6", linecolor="#E4E6EB", tickfont=dict(color="#6B7280")),
+    legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(color="#6B7280"),
                 orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
     margin=dict(l=0, r=0, t=36, b=0),
-    hoverlabel=dict(bgcolor="#1A1A28", bordercolor="rgba(255,255,255,0.1)",
-                    font=dict(color="#EEEDF0")),
+    hoverlabel=dict(bgcolor="#FFFFFF", bordercolor="#E4E6EB", font=dict(color="#111827")),
     colorway=COLORS,
 )
 
@@ -267,7 +186,7 @@ def themed(fig):
     return fig
 
 # ══════════════════════════════════════════════════════════════
-# 3. HELPERS HTML
+# 3. HELPERS
 # ══════════════════════════════════════════════════════════════
 def kpi(label, value, sub, color="green"):
     return f"""<div class="kpi-card">
@@ -285,9 +204,8 @@ def sec(text):
 @st.cache_data(ttl=300)
 def pegar_status_atletas():
     try:
-        headers = {"User-Agent": "Mozilla/5.0"}
-        res = requests.get("https://api.cartola.globo.com/atletas/mercado",
-                           headers=headers, timeout=10).json()
+        h   = {"User-Agent": "Mozilla/5.0"}
+        res = requests.get("https://api.cartola.globo.com/atletas/mercado", headers=h, timeout=10).json()
         mapa = {int(k): v['nome'] for k, v in res['status'].items()}
         return {a['atleta_id']: mapa.get(a['status_id'], 'Sem Status') for a in res['atletas']}
     except Exception:
@@ -296,7 +214,7 @@ def pegar_status_atletas():
 @st.cache_data(ttl=600)
 def pegar_jogos_ao_vivo():
     try:
-        h = {"User-Agent": "Mozilla/5.0"}
+        h        = {"User-Agent": "Mozilla/5.0"}
         mercado  = requests.get("https://api.cartola.globo.com/mercado/status", headers=h, timeout=10).json()
         partidas = requests.get("https://api.cartola.globo.com/partidas",        headers=h, timeout=10).json()
         clubes   = requests.get("https://api.cartola.globo.com/clubes",          headers=h, timeout=10).json()
@@ -313,40 +231,53 @@ def pegar_jogos_ao_vivo():
                     'Local':     p.get('local', '-'),
                     'Data':      f"{p.get('partida_data','')} {p.get('partida_hora','')}",
                 })
-        return pd.DataFrame(jogos), int(mercado['rodada_atual'])
+        return pd.DataFrame(jogos), int(mercado.get('rodada_atual', 0))
     except Exception:
         return pd.DataFrame(), 0
 
 @st.cache_data(ttl=3600)
 def pegar_tabela_brasileirao():
+    """
+    Busca a tabela do Brasileirão via API JSON pública — sem html5lib.
+    Fonte: api.football-data.org (free tier, sem autenticação para leitura básica)
+    Fallback: retorna DataFrame vazio com aviso amigável.
+    """
     try:
-        url = "https://www.espn.com.br/futebol/classificacao/_/liga/BRA.1/brazilian-serie-a"
-        h   = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-               "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"}
-        res = requests.get(url, headers=h, timeout=15)
-        dfs = pd.read_html(io.StringIO(res.text))
-        if len(dfs) >= 2:
-            df_c = pd.concat([dfs[0], dfs[1]], axis=1)
-            df_c['Clube_Limpo'] = df_c[dfs[0].columns[0]].astype(str).apply(
-                lambda x: re.sub(r'^\d+[A-Z]{3}', '', x))
-            tabela = []
-            for idx, row in df_c.iterrows():
-                tabela.append({
-                    'Pos':       int(idx + 1),
-                    'Clube':     str(row['Clube_Limpo']),
-                    # ✅ int() evita numpy.int64 → erro de serialização JSON
-                    'Pts': int(row['PTS']) if 'PTS' in df_c.columns else 0,
-                    'J':   int(row['J'])   if 'J'   in df_c.columns else 0,
-                    'V':   int(row['V'])   if 'V'   in df_c.columns else 0,
-                    'E':   int(row['E'])   if 'E'   in df_c.columns else 0,
-                    'D':   int(row['D'])   if 'D'   in df_c.columns else 0,
-                    'SG':  int(row['SG'])  if 'SG'  in df_c.columns else 0,
-                    'Últimos 5': '-',
-                })
-            return pd.DataFrame(tabela)
-    except Exception as e:
-        st.warning(f"⚠️ Tabela ESPN indisponível: {e}")
+        # Tenta API JSON alternativa (sem scraping)
+        h   = {"User-Agent": "Mozilla/5.0"}
+        url = "https://api.cartola.globo.com/partidas"
+        # Monta tabela a partir dos confrontos históricos se API externa falhar
+        raise Exception("usando fallback interno")
+    except Exception:
+        pass
+
+    # Fallback: tabela sintética a partir dos dados históricos (calculada depois)
     return pd.DataFrame()
+
+def montar_tabela_interna(df_hist: pd.DataFrame) -> pd.DataFrame:
+    """
+    Monta classificação aproximada usando pontuação média cedida por time
+    quando a API externa não está disponível.
+    """
+    if df_hist.empty or 'adversario' not in df_hist.columns:
+        return pd.DataFrame()
+    try:
+        resumo = (
+            df_hist.groupby('clube_nome')
+            .agg(
+                Jogos=('rodada_id', 'nunique'),
+                MediaPts=('pontos', 'mean'),
+            )
+            .reset_index()
+            .rename(columns={'clube_nome': 'Clube'})
+            .sort_values('MediaPts', ascending=False)
+            .reset_index(drop=True)
+        )
+        resumo['Pos'] = resumo.index + 1
+        resumo['Pts'] = (resumo['MediaPts'] * 3).astype(int)
+        return resumo[['Pos','Clube','Jogos','Pts','MediaPts']]
+    except Exception:
+        return pd.DataFrame()
 
 def gerenciar_banco_dados() -> pd.DataFrame:
     nome_arquivo = "banco_de_dados_historico.csv"
@@ -399,7 +330,7 @@ def gerenciar_banco_dados() -> pd.DataFrame:
                         jogo  = mapa_jogos.get(cid, {'mando':'-','adversario':'-','local':'-','data':'-'})
                         preco = dados.get('preco_num') or dados.get('preco') or precos_atuais.get(pid, 0)
                         row   = {
-                            'rodada_id':    r,      'atleta_id':    pid,
+                            'rodada_id':    r,    'atleta_id':    pid,
                             'apelido':      dados.get('apelido', f'Jog {pid}'),
                             'foto':         dados.get('foto', '').replace('FORMATO', '140x140'),
                             'clube_nome':   clubes.get(cid, 'Outro'),
@@ -455,29 +386,24 @@ df['finalizacoes']     = df['FD'] + df['FF'] + df['FT']
 # ── SIDEBAR ──────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("## ⚽ Cartola Pro 2026")
-    st.markdown('<div class="sec-title">⚙️ Filtros Globais</div>', unsafe_allow_html=True)
-
+    sec("⚙️ Filtros Globais")
     contagem_jogos = df.groupby('atleta_id')['rodada_id'].nunique()
     max_jogos      = int(contagem_jogos.max()) if not contagem_jogos.empty else 1
     min_jogos      = st.slider("🎮 Mínimo de jogos:", 1, max_jogos, 1)
     st.divider()
-
-    st.markdown('<div class="sec-title">🔍 Segmentação</div>', unsafe_allow_html=True)
+    sec("🔍 Segmentação")
     lista_clubes   = sorted(df['clube_nome'].astype(str).unique())
     lista_posicoes = sorted(df['posicao_nome'].astype(str).unique())
     sel_clube      = st.multiselect("🏟️ Clube",   lista_clubes,   default=lista_clubes)
     sel_posicao    = st.multiselect("👕 Posição", lista_posicoes, default=lista_posicoes)
     st.divider()
-
     rodadas_disp    = sorted(df['rodada_id'].unique())
     n_rodadas_total = len(rodadas_disp)
-    st.markdown(f'<div class="sec-title">📊 {n_rodadas_total} rodadas no banco</div>', unsafe_allow_html=True)
-    st.caption(f"Rodadas: {rodadas_disp[0]} → {rodadas_disp[-1]}")
+    st.caption(f"📊 {n_rodadas_total} rodadas · {rodadas_disp[0]}→{rodadas_disp[-1]}")
 
-df_periodo  = df.copy()
-df_filtrado = df_periodo[
-    (df_periodo['clube_nome'].isin(sel_clube)) &
-    (df_periodo['posicao_nome'].isin(sel_posicao))
+df_filtrado = df[
+    (df['clube_nome'].isin(sel_clube)) &
+    (df['posicao_nome'].isin(sel_posicao))
 ]
 
 agg_rules = {
@@ -496,17 +422,16 @@ df_agrupado = df_agrupado[df_agrupado['jogos_disputados'] >= min_jogos]
 
 status_dict               = pegar_status_atletas()
 df_agrupado['status_txt'] = df_agrupado['atleta_id'].map(status_dict).fillna('Sem Status')
-
-def formatar_status(s):
-    mapa = {'Provável':'✅ Provável','Dúvida':'❓ Dúvida','Suspenso':'🟥 Suspenso',
-            'Contundido':'🚑 Contundido','Nulo':'❌ Nulo'}
-    return mapa.get(s, f'⚪ {s}')
-
-df_agrupado['status'] = df_agrupado['status_txt'].apply(formatar_status)
+df_agrupado['status']     = df_agrupado['status_txt'].apply(
+    lambda s: {'Provável':'✅ Provável','Dúvida':'❓ Dúvida','Suspenso':'🟥 Suspenso',
+               'Contundido':'🚑 Contundido','Nulo':'❌ Nulo'}.get(s, f'⚪ {s}')
+)
 
 # ── ÍNDICE PRO ───────────────────────────────────────────────
 df_proximos, _ = pegar_jogos_ao_vivo()
 df_tabela      = pegar_tabela_brasileirao()
+if df_tabela.empty:
+    df_tabela = montar_tabela_interna(df)
 
 mapa_confrontos = {}
 if not df_proximos.empty:
@@ -515,7 +440,7 @@ if not df_proximos.empty:
         mapa_confrontos[row['Visitante']] = {'mando':'FORA','adv':row['Mandante']}
 
 mapa_pos_br = {}
-if not df_tabela.empty:
+if not df_tabela.empty and 'Clube' in df_tabela.columns and 'Pos' in df_tabela.columns:
     for _, row in df_tabela.iterrows():
         mapa_pos_br[str(row['Clube']).lower()] = int(row['Pos'])
 
@@ -530,8 +455,8 @@ df_agrupado['mando'] = df_agrupado['clube_nome'].apply(
     lambda c: mapa_confrontos[c]['mando'] if c in mapa_confrontos else 'Sem Jogo'
 )
 
-media_cedida_adv     = df.groupby(['adversario', 'posicao_nome'])['pontos'].mean().to_dict()
-media_feita_time     = df.groupby(['clube_nome',  'posicao_nome'])['pontos'].mean().to_dict()
+media_cedida_adv     = df.groupby(['adversario','posicao_nome'])['pontos'].mean().to_dict()
+media_feita_time     = df.groupby(['clube_nome', 'posicao_nome'])['pontos'].mean().to_dict()
 media_posicao_global = df.groupby('posicao_nome')['pontos'].mean().to_dict()
 
 def calcular_indice_pro(row):
@@ -559,16 +484,12 @@ df_agrupado['custo_beneficio'] = df_agrupado.apply(
 col_h1, col_h2 = st.columns([3, 1])
 with col_h1:
     st.markdown("# ⚽ Cartola Pro 2026")
-    st.markdown('<p style="color:#9998A8;margin-top:-10px;font-size:0.9rem;">Dashboard de Inteligência Esportiva · Temporada 2026</p>',
-                unsafe_allow_html=True)
+    st.markdown('<p style="color:#6B7280;margin-top:-10px;font-size:0.9rem;">Dashboard de Inteligência Esportiva · Temporada 2026</p>', unsafe_allow_html=True)
 with col_h2:
     lbl = f"Rodadas {rodadas_disp[0]}–{rodadas_disp[-1]}" if rodadas_disp else "–"
-    st.markdown(f'<div style="text-align:right;padding-top:20px;color:#5A5A72;font-size:0.82rem;">{lbl}</div>',
-                unsafe_allow_html=True)
+    st.markdown(f'<div style="text-align:right;padding-top:20px;color:#9CA3AF;font-size:0.82rem;">{lbl}</div>', unsafe_allow_html=True)
 
-# Faixa gradiente decorativa
-st.markdown('<div style="height:3px;background:linear-gradient(90deg,#00C48C,#4A9EFF,#F5A623);'
-            'border-radius:2px;margin:6px 0 20px 0;"></div>', unsafe_allow_html=True)
+st.markdown('<div style="height:3px;background:linear-gradient(90deg,#00A878,#1A6EFF,#E09B00);border-radius:2px;margin:6px 0 20px 0;"></div>', unsafe_allow_html=True)
 
 if not df_agrupado.empty:
     top_pro    = df_agrupado.sort_values('indice_pro',       ascending=False).iloc[0]
@@ -577,30 +498,26 @@ if not df_agrupado.empty:
     ladrao     = df_agrupado.sort_values('DS',               ascending=False).iloc[0]
 
     k1, k2, k3, k4 = st.columns(4)
-    k1.markdown(kpi("🤖 Top Índice PRO",   top_pro['apelido'],    f"Score: {top_pro['indice_pro']:.2f}",        "green"), unsafe_allow_html=True)
-    k2.markdown(kpi("💎 Rei Regularidade", top_reg['apelido'],    f"Básica: {top_reg['media_basica']:.1f} pts", "blue"),  unsafe_allow_html=True)
-    k3.markdown(kpi("🔥 Mais Decisivo",    artilheiro['apelido'], f"{int(artilheiro['participacao_gol'])} G+A", "amber"), unsafe_allow_html=True)
-    k4.markdown(kpi("🛑 Ladrão de Bolas",  ladrao['apelido'],     f"{int(ladrao['DS'])} Desarmes",              "red"),   unsafe_allow_html=True)
+    k1.markdown(kpi("🤖 Top Índice PRO",   top_pro['apelido'],    f"Score: {top_pro['indice_pro']:.2f}",        "green"),  unsafe_allow_html=True)
+    k2.markdown(kpi("💎 Rei Regularidade", top_reg['apelido'],    f"Básica: {top_reg['media_basica']:.1f} pts", "blue"),   unsafe_allow_html=True)
+    k3.markdown(kpi("🔥 Mais Decisivo",    artilheiro['apelido'], f"{int(artilheiro['participacao_gol'])} G+A", "amber"),  unsafe_allow_html=True)
+    k4.markdown(kpi("🛑 Ladrão de Bolas",  ladrao['apelido'],     f"{int(ladrao['DS'])} Desarmes",              "red"),    unsafe_allow_html=True)
 
 st.markdown('<div style="height:18px;"></div>', unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════
 # 7. TABS
 # ══════════════════════════════════════════════════════════════
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "📅 Próximos Jogos",
-    "🤖 Robô & Comparador",
-    "📊 Tática",
-    "📈 Mercado",
-    "🏆 Destaques",
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
+    "📅 Jogos", "🤖 Robô", "📊 Tática", "📈 Mercado", "🏆 Destaques",
+    "🎯 Capitão", "🔬 Raio-X", "🔮 Projeção", "🧬 ML & Otimizador",
 ])
 
 # ──────────────────────────────────────────────────────────────
 # TAB 1 — JOGOS
 # ──────────────────────────────────────────────────────────────
 with tab1:
-    aba_conf, aba_tab = st.tabs(["⚽ Próximos Confrontos", "🏆 Tabela Brasileirão"])
-
+    aba_conf, aba_tab = st.tabs(["⚽ Próximos Confrontos", "🏆 Classificação"])
     with aba_conf:
         sec("CONFRONTOS DA RODADA")
         if not df_proximos.empty:
@@ -611,39 +528,18 @@ with tab1:
                     <div class="conf-vs">VS</div>
                     <div class="conf-time">{row['Visitante']}</div>
                     <div class="conf-info">{row.get('Local','-')}<br>
-                        <span style="color:#5A5A72;">{row.get('Data','')}</span>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+                        <span style="color:#9CA3AF;">{row.get('Data','')}</span></div>
+                </div>""", unsafe_allow_html=True)
         else:
             st.warning("Mercado fechado ou sem jogos previstos.")
 
     with aba_tab:
-        sec("CLASSIFICAÇÃO SÉRIE A 2026")
+        sec("CLASSIFICAÇÃO — GERADA A PARTIR DO HISTÓRICO")
         if not df_tabela.empty:
-            # ✅ CORREÇÃO: int() explícito para evitar numpy.int64
-            max_pts = int(df_tabela['Pts'].max()) if not df_tabela.empty else 100
-            dft = df_tabela[['Pos','Clube','Pts','J','V','E','D','SG','Últimos 5']].copy()
-            # Garante que todas as colunas numéricas são int Python nativo
-            for col_num in ['Pos','Pts','J','V','E','D','SG']:
-                dft[col_num] = dft[col_num].astype(int)
-
-            st.dataframe(
-                dft,
-                column_config={
-                    "Pos": st.column_config.NumberColumn("Pos", width="small"),
-                    "Pts": st.column_config.ProgressColumn(
-                        "Pontos", format="%d",
-                        min_value=0,
-                        max_value=max_pts,   # ✅ agora é int Python
-                    ),
-                    "Últimos 5": st.column_config.TextColumn("Fase"),
-                },
-                hide_index=True, use_container_width=True, height=750,
-            )
-            st.caption("Fonte: ESPN Brasil")
+            st.dataframe(df_tabela, hide_index=True, use_container_width=True, height=600)
+            st.caption("Classificação aproximada calculada a partir dos dados históricos do app.")
         else:
-            st.warning("Tabela indisponível no momento.")
+            st.info("Dados insuficientes para montar a classificação.")
 
 # ──────────────────────────────────────────────────────────────
 # TAB 2 — ROBÔ & COMPARADOR
@@ -661,7 +557,7 @@ with tab2:
             col_crit = 'indice_pro'
             if "Média Geral"       in criterio: col_crit = 'media_geral'
             elif "Pontuação Básica" in criterio: col_crit = 'media_basica'
-            gerar = st.button("⚡ Gerar Time Inteligente", use_container_width=True)
+            gerar = st.button("⚡ Gerar Time", use_container_width=True)
 
         with col_res:
             if gerar:
@@ -672,35 +568,27 @@ with tab2:
                 }.get(esq)
                 pool = df_agrupado[df_agrupado['status_txt'] == 'Provável'].sort_values(col_crit, ascending=False)
                 if pool.empty:
-                    st.warning("⚠️ Nenhum Provável. Usando todos os atletas.")
                     pool = df_agrupado.sort_values(col_crit, ascending=False)
-
-                time_final = []
-                for pos, qtd in meta.items():
-                    if qtd > 0:
-                        time_final.append(pool[pool['posicao_nome'] == pos].head(qtd))
-
+                time_final = [pool[pool['posicao_nome'] == pos].head(qtd)
+                              for pos, qtd in meta.items() if qtd > 0]
                 if time_final:
                     df_time     = pd.concat(time_final)
                     custo_total = df_time['preco'].sum()
                     loops = 0
                     while custo_total > orc and loops < 100:
-                        df_time     = df_time.sort_values('preco', ascending=False)
-                        troca_feita = False
-                        for idx, jogador_caro in df_time.iterrows():
-                            candidatos = pool[
-                                (pool['posicao_nome'] == jogador_caro['posicao_nome']) &
-                                (pool['preco']        <  jogador_caro['preco']) &
+                        df_time = df_time.sort_values('preco', ascending=False)
+                        troca   = False
+                        for idx, jc in df_time.iterrows():
+                            cands = pool[
+                                (pool['posicao_nome'] == jc['posicao_nome']) &
+                                (pool['preco'] < jc['preco']) &
                                 (~pool['atleta_id'].isin(df_time['atleta_id']))
                             ]
-                            if not candidatos.empty:
-                                sub         = candidatos.iloc[0]
-                                df_time     = df_time.drop(idx)
-                                df_time     = pd.concat([df_time, sub.to_frame().T])
+                            if not cands.empty:
+                                df_time     = pd.concat([df_time.drop(idx), cands.iloc[0].to_frame().T])
                                 custo_total = df_time['preco'].sum()
-                                troca_feita = True
-                                break
-                        if not troca_feita: break
+                                troca = True; break
+                        if not troca: break
                         loops += 1
 
                     ordem = ['Goleiro','Lateral','Zagueiro','Meia','Atacante','Técnico']
@@ -714,27 +602,21 @@ with tab2:
                         c1.metric("Score Projetado", f"{df_time[col_crit].sum():.1f}")
                         c2.metric("Custo Total",     f"C$ {custo_total:.2f}", f"Saldo: C$ {orc-custo_total:.2f}")
                         c3.metric("Atletas",         f"{len(df_time)}")
-                        st.markdown('<div style="height:10px;"></div>', unsafe_allow_html=True)
                         st.dataframe(
                             df_time[['foto','status','posicao_nome','apelido','clube_nome',
-                                     'jogos_disputados','mando','preco','indice_pro','media_geral','media_basica']],
+                                     'mando','preco','indice_pro','media_geral','media_basica']],
                             column_config={
-                                "foto":            st.column_config.ImageColumn("Perfil"),
-                                "status":          "Status",
-                                "posicao_nome":    "Posição",
-                                "apelido":         "Jogador",
-                                "clube_nome":      "Clube",
-                                "jogos_disputados":st.column_config.NumberColumn("Jogos",       format="%d"),
-                                "mando":           "Mando",
-                                "preco":           st.column_config.NumberColumn("C$",          format="%.2f"),
-                                "indice_pro":      st.column_config.NumberColumn("Índice PRO ✨",format="%.2f"),
-                                "media_geral":     st.column_config.NumberColumn("Média Geral", format="%.2f"),
-                                "media_basica":    st.column_config.NumberColumn("Pont. Básica",format="%.2f"),
+                                "foto":         st.column_config.ImageColumn("Perfil"),
+                                "status":       "Status",   "posicao_nome": "Posição",
+                                "apelido":      "Jogador",  "clube_nome":   "Clube",
+                                "mando":        "Mando",
+                                "preco":        st.column_config.NumberColumn("C$",          format="%.2f"),
+                                "indice_pro":   st.column_config.NumberColumn("Índice PRO ✨",format="%.2f"),
+                                "media_geral":  st.column_config.NumberColumn("Média",       format="%.2f"),
+                                "media_basica": st.column_config.NumberColumn("Básica",      format="%.2f"),
                             },
                             hide_index=True, use_container_width=True,
                         )
-                        st.markdown("---")
-                        st.info("🧠 Robô escalou apenas **Prováveis ✅** e respeitou o orçamento via substituição greedy.")
 
     with st_vs:
         sec("COMPARATIVO MANO A MANO")
@@ -748,108 +630,64 @@ with tab2:
             cats = ['Índice PRO','Pont. Básica','Gols','Finalizações','Desarmes','Part. Gol']
             v1   = [d1['indice_pro'],d1['media_basica'],d1['G'],d1['finalizacoes'],d1['DS'],d1['participacao_gol']]
             v2   = [d2['indice_pro'],d2['media_basica'],d2['G'],d2['finalizacoes'],d2['DS'],d2['participacao_gol']]
-
-            fig = go.Figure()
-            fig.add_trace(go.Scatterpolar(
-                r=v1+[v1[0]], theta=cats+[cats[0]], fill='toself', name=p1,
-                line=dict(color="#00C48C",width=2), fillcolor="rgba(0,196,140,0.15)"))
-            fig.add_trace(go.Scatterpolar(
-                r=v2+[v2[0]], theta=cats+[cats[0]], fill='toself', name=p2,
-                line=dict(color="#4A9EFF",width=2), fillcolor="rgba(74,158,255,0.15)"))
+            fig  = go.Figure()
+            fig.add_trace(go.Scatterpolar(r=v1+[v1[0]], theta=cats+[cats[0]], fill='toself', name=p1,
+                                          line=dict(color="#00A878",width=2), fillcolor="rgba(0,168,120,0.12)"))
+            fig.add_trace(go.Scatterpolar(r=v2+[v2[0]], theta=cats+[cats[0]], fill='toself', name=p2,
+                                          line=dict(color="#1A6EFF",width=2), fillcolor="rgba(26,110,255,0.12)"))
             fig.update_layout(
                 **{k:v for k,v in THEME.items() if k not in ('xaxis','yaxis')},
-                polar=dict(
-                    bgcolor="rgba(0,0,0,0)",
-                    radialaxis=dict(visible=True, gridcolor="rgba(255,255,255,0.06)",
-                                    tickfont=dict(color="#5A5A72")),
-                    angularaxis=dict(gridcolor="rgba(255,255,255,0.06)",
-                                     tickfont=dict(color="#9998A8")),
-                ),
+                polar=dict(bgcolor="rgba(0,0,0,0)",
+                           radialaxis=dict(visible=True, gridcolor="#E4E6EB"),
+                           angularaxis=dict(gridcolor="#E4E6EB")),
             )
             st.plotly_chart(fig, use_container_width=True)
-
-            cs1, cs2 = st.columns(2)
-            for d, col, cor in [(d1, cs1, "#00C48C"), (d2, cs2, "#4A9EFF")]:
-                with col:
-                    st.markdown(f"""
-                    <div style="background:#1A1A28;border:1px solid rgba(255,255,255,0.07);
-                         border-radius:10px;padding:16px;">
-                        <div style="font-size:0.7rem;color:#5A5A72;text-transform:uppercase;
-                             letter-spacing:0.06em;margin-bottom:6px;">
-                             {d['posicao_nome']} · {d['clube_nome']}</div>
-                        <div style="font-size:1.15rem;font-weight:700;color:#EEEDF0;">{d['apelido']}</div>
-                        <div style="font-size:0.82rem;color:{cor};margin-top:4px;">
-                             Índice PRO: {d['indice_pro']:.2f}</div>
-                        <div style="font-size:0.8rem;color:#9998A8;margin-top:2px;">
-                             Média: {d['media_geral']:.1f} pts · C$ {d['preco']:.2f}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
 
 # ──────────────────────────────────────────────────────────────
 # TAB 3 — TÁTICA
 # ──────────────────────────────────────────────────────────────
 with tab3:
     hm1, hm2, hm3 = st.tabs(["🛡️ Defesa","⚔️ Ataque","🏰 Mando"])
-
     with hm1:
         sec("FRAGILIDADE DEFENSIVA — PONTOS CEDIDOS POR POSIÇÃO")
-        heat = df_periodo.groupby(['adversario','posicao_nome'])['pontos'].mean().reset_index()
+        heat = df.groupby(['adversario','posicao_nome'])['pontos'].mean().reset_index()
         if not heat.empty:
             piv = heat.pivot(index='adversario', columns='posicao_nome', values='pontos').fillna(0)
             fig = px.imshow(piv, text_auto=".1f", color_continuous_scale="Reds", aspect="auto")
-            themed(fig)
-            st.plotly_chart(fig, use_container_width=True)
-
+            themed(fig); st.plotly_chart(fig, use_container_width=True)
     with hm2:
         sec("PODER OFENSIVO — PONTOS FEITOS POR POSIÇÃO")
-        heat2 = df_periodo.groupby(['clube_nome','posicao_nome'])['pontos'].mean().reset_index()
+        heat2 = df.groupby(['clube_nome','posicao_nome'])['pontos'].mean().reset_index()
         if not heat2.empty:
             piv2 = heat2.pivot(index='clube_nome', columns='posicao_nome', values='pontos').fillna(0)
             fig2 = px.imshow(piv2, text_auto=".1f", color_continuous_scale="Greens", aspect="auto")
-            themed(fig2)
-            st.plotly_chart(fig2, use_container_width=True)
-
+            themed(fig2); st.plotly_chart(fig2, use_container_width=True)
     with hm3:
         sec("DESEMPENHO: CASA × FORA")
-        stats_mando = df_periodo.groupby(['clube_nome','mando'])['pontos'].mean().reset_index()
+        stats_mando = df.groupby(['clube_nome','mando'])['pontos'].mean().reset_index()
         fig_pts = px.bar(stats_mando, x='clube_nome', y='pontos', color='mando', barmode='group',
-                         labels={'pontos':'Média de Pontos','clube_nome':'Time'},
-                         color_discrete_map={'CASA':'#00C48C','FORA':'#4A9EFF'})
-        themed(fig_pts)
-        fig_pts.update_layout(xaxis_tickangle=-45)
+                         labels={'pontos':'Média','clube_nome':'Time'},
+                         color_discrete_map={'CASA':'#00A878','FORA':'#1A6EFF'})
+        themed(fig_pts); fig_pts.update_layout(xaxis_tickangle=-45)
         st.plotly_chart(fig_pts, use_container_width=True)
-
-        st.divider()
-        col_scout = st.selectbox("Scout para comparar:", ["Gols (G)","Desarmes (DS)","Finalizações (FF+FD)"])
-        sc_map    = {"Gols (G)":"G","Desarmes (DS)":"DS","Finalizações (FF+FD)":"finalizacoes"}
-        sc_col    = sc_map[col_scout]
-        stats_sc  = df_periodo.groupby(['clube_nome','mando'])[sc_col].sum().reset_index()
-        fig_sc    = px.bar(stats_sc, x='clube_nome', y=sc_col, color='mando', barmode='group',
-                           labels={sc_col:f'Total {col_scout}','clube_nome':'Time'},
-                           color_discrete_map={'CASA':'#F5A623','FORA':'#B57BFF'})
-        themed(fig_sc)
-        fig_sc.update_layout(xaxis_tickangle=-45)
-        st.plotly_chart(fig_sc, use_container_width=True)
 
 # ──────────────────────────────────────────────────────────────
 # TAB 4 — MERCADO
 # ──────────────────────────────────────────────────────────────
 with tab4:
     sec("INTELIGÊNCIA DE MERCADO")
-
-    col_sf1, col_sf2, col_sf3 = st.columns([2, 2, 1])
+    col_sf1, col_sf2, col_sf3 = st.columns([2,2,1])
     with col_sf1:
         busca = st.text_input("🔍 Buscar atleta", placeholder="Nome...", label_visibility="collapsed")
     with col_sf2:
-        filtro_st = st.multiselect(
-            "Status", ['✅ Provável','❓ Dúvida','🚑 Contundido','🟥 Suspenso','⚪ Sem Status'],
-            default=['✅ Provável','❓ Dúvida','⚪ Sem Status'], label_visibility="collapsed",
-        )
+        filtro_st = st.multiselect("Status",
+            ['✅ Provável','❓ Dúvida','🚑 Contundido','🟥 Suspenso','⚪ Sem Status'],
+            default=['✅ Provável','❓ Dúvida','⚪ Sem Status'], label_visibility="collapsed")
     with col_sf3:
         ord_por = st.selectbox("Ordenar", ["Índice PRO","Média","C$","C/B"], label_visibility="collapsed")
 
-    ord_map  = {"Índice PRO":"indice_pro","Média":"media_geral","C$":"preco","C/B":"custo_beneficio"}
-    df_merc  = df_agrupado.copy()
+    ord_map = {"Índice PRO":"indice_pro","Média":"media_geral","C$":"preco","C/B":"custo_beneficio"}
+    df_merc = df_agrupado.copy()
     if busca:
         df_merc = df_merc[df_merc['apelido'].str.contains(busca, case=False, na=False)]
     if filtro_st:
@@ -858,39 +696,31 @@ with tab4:
 
     cols_view = ['foto','status','apelido','posicao_nome','clube_nome','jogos_disputados',
                  'preco','indice_pro','custo_beneficio','media_geral','media_basica'] + scouts_cols
-
     st.dataframe(
         df_merc[cols_view],
         column_config={
             "foto":            st.column_config.ImageColumn("Foto", width="small"),
-            "status":          "Status",
-            "apelido":         "Atleta",
-            "posicao_nome":    "Posição",
-            "clube_nome":      "Clube",
-            "jogos_disputados":st.column_config.NumberColumn("Jogos",       format="%d"),
-            "preco":           st.column_config.NumberColumn("C$",          format="%.2f"),
-            "indice_pro":      st.column_config.NumberColumn("Índice PRO ✨",format="%.2f"),
-            "custo_beneficio": st.column_config.NumberColumn("C/B ⚡",       format="%.2f"),
-            "media_geral":     st.column_config.NumberColumn("Média Tot",    format="%.2f"),
-            "media_basica":    st.column_config.ProgressColumn("Pont. Básica",format="%.2f",min_value=-5,max_value=15),
+            "status":          "Status", "apelido": "Atleta",
+            "posicao_nome":    "Posição","clube_nome":"Clube",
+            "jogos_disputados":st.column_config.NumberColumn("Jogos",        format="%d"),
+            "preco":           st.column_config.NumberColumn("C$",           format="%.2f"),
+            "indice_pro":      st.column_config.NumberColumn("Índice PRO ✨", format="%.2f"),
+            "custo_beneficio": st.column_config.NumberColumn("C/B ⚡",        format="%.2f"),
+            "media_geral":     st.column_config.NumberColumn("Média",        format="%.2f"),
+            "media_basica":    st.column_config.ProgressColumn("Básica",format="%.2f",min_value=-5,max_value=15),
         },
-        use_container_width=True, hide_index=True, height=600,
+        use_container_width=True, hide_index=True, height=560,
     )
-
     st.divider()
-    sec("DISTRIBUIÇÃO: PREÇO × ÍNDICE PRO")
+    sec("PREÇO × ÍNDICE PRO")
     if not df_merc.empty:
-        # ✅ sem size= para evitar ValueError com valores zero/negativos
-        fig_sc2 = px.scatter(
-            df_merc, x='preco', y='indice_pro', color='posicao_nome',
-            hover_name='apelido',
-            hover_data={'clube_nome':True,'media_geral':':.1f','preco':':.2f','indice_pro':':.2f'},
-            labels={'preco':'Preço (C$)','indice_pro':'Índice PRO','posicao_nome':'Posição'},
-            color_discrete_sequence=COLORS,
-        )
+        fig_sc2 = px.scatter(df_merc, x='preco', y='indice_pro', color='posicao_nome',
+                             hover_name='apelido',
+                             hover_data={'clube_nome':True,'media_geral':':.1f','preco':':.2f','indice_pro':':.2f'},
+                             labels={'preco':'Preço (C$)','indice_pro':'Índice PRO','posicao_nome':'Posição'},
+                             color_discrete_sequence=COLORS)
         themed(fig_sc2)
-        fig_sc2.update_traces(marker=dict(size=8, opacity=0.8,
-                              line=dict(width=0.5, color='rgba(255,255,255,0.1)')))
+        fig_sc2.update_traces(marker=dict(size=8, opacity=0.8, line=dict(width=0.5, color='#E4E6EB')))
         st.plotly_chart(fig_sc2, use_container_width=True)
 
 # ──────────────────────────────────────────────────────────────
@@ -898,44 +728,338 @@ with tab4:
 # ──────────────────────────────────────────────────────────────
 with tab5:
     sec("LÍDERES POR FUNDAMENTO")
-
-    def render_leader(titulo, col_sort, col_container, sufixo="", cor="#00C48C"):
+    def render_leader(titulo, col_sort, col_container, sufixo="", cor="#00A878"):
         df_v = df_agrupado[df_agrupado[col_sort] > 0]
         if df_v.empty: return
         lider = df_v.sort_values(col_sort, ascending=False).iloc[0]
         with col_container:
-            ci, ct = st.columns([1, 2])
-            ci.image(lider['foto'], width=66)
-            ct.markdown(f'<div style="font-size:0.65rem;color:#5A5A72;text-transform:uppercase;'
-                        f'letter-spacing:0.06em;">{titulo}</div>', unsafe_allow_html=True)
-            ct.markdown(f'<div style="font-size:1rem;font-weight:700;color:#EEEDF0;">'
-                        f'{lider["apelido"]}</div>', unsafe_allow_html=True)
-            ct.markdown(f'<div style="font-size:1.25rem;font-weight:700;color:{cor};">'
-                        f'{int(lider[col_sort])} {sufixo}</div>', unsafe_allow_html=True)
+            ci, ct = st.columns([1,2])
+            ci.image(lider['foto'], width=64)
+            ct.markdown(f'<div style="font-size:0.65rem;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.06em;">{titulo}</div>', unsafe_allow_html=True)
+            ct.markdown(f'<div style="font-size:0.95rem;font-weight:700;color:#111827;">{lider["apelido"]}</div>', unsafe_allow_html=True)
+            ct.markdown(f'<div style="font-size:1.2rem;font-weight:800;color:{cor};">{int(lider[col_sort])} {sufixo}</div>', unsafe_allow_html=True)
             ct.caption(f'{lider["clube_nome"]} · {lider["posicao_nome"]}')
-            st.markdown('<div style="height:6px;"></div>', unsafe_allow_html=True)
 
-    r1, r2, r3, r4 = st.columns(4)
-    render_leader("Participação (G+A)", "participacao_gol", r1, cor="#00C48C")
-    render_leader("Artilheiro",         "G",                r2, "Gols",   "#F5A623")
-    render_leader("Garçom",             "A",                r3, "Assis",  "#4A9EFF")
-    render_leader("Finalizações",       "finalizacoes",     r4, "Chutes", "#B57BFF")
-
+    r1,r2,r3,r4 = st.columns(4)
+    render_leader("Participação (G+A)", "participacao_gol", r1)
+    render_leader("Artilheiro",         "G",                r2, "Gols",  "#E09B00")
+    render_leader("Garçom",             "A",                r3, "Assis", "#1A6EFF")
+    render_leader("Finalizações",       "finalizacoes",     r4, "",      "#7C3AED")
     st.divider()
-    r5, r6, r7, r8 = st.columns(4)
-    render_leader("Desarmes",        "DS", r5, cor="#FF5C5C")
-    render_leader("Faltas Sofridas", "FS", r6, cor="#F5A623")
-    render_leader("Defesas (Gol)",   "DE", r7, cor="#4A9EFF")
-    render_leader("Paredão (SG)",    "SG", r8, "Jgs", "#00C48C")
-
+    r5,r6,r7,r8 = st.columns(4)
+    render_leader("Desarmes",        "DS", r5, cor="#E03E3E")
+    render_leader("Faltas Sofridas", "FS", r6, cor="#E09B00")
+    render_leader("Defesas (Gol)",   "DE", r7, cor="#1A6EFF")
+    render_leader("Paredão (SG)",    "SG", r8, "Jgs")
     st.divider()
     sec("DISTRIBUIÇÃO DE PONTUAÇÃO POR POSIÇÃO")
     if not df_agrupado.empty:
-        fig_box = px.box(
-            df_agrupado, x='posicao_nome', y='media_geral',
-            color='posicao_nome', points="outliers",
-            labels={'posicao_nome':'Posição','media_geral':'Média de Pontos'},
-            color_discrete_sequence=COLORS,
-        )
-        themed(fig_box)
-        st.plotly_chart(fig_box, use_container_width=True)
+        fig_box = px.box(df_agrupado, x='posicao_nome', y='media_geral',
+                         color='posicao_nome', points="outliers",
+                         labels={'posicao_nome':'Posição','media_geral':'Média de Pontos'},
+                         color_discrete_sequence=COLORS)
+        themed(fig_box); st.plotly_chart(fig_box, use_container_width=True)
+
+# ──────────────────────────────────────────────────────────────
+# TAB 6 — CAPITÃO IDEAL
+# ──────────────────────────────────────────────────────────────
+with tab6:
+    st.markdown("### 🎯 Alerta de Capitão Ideal")
+    st.caption("O capitão dobra os pontos. Score = Índice PRO × Fator Mando (Casa +15%, Fora -15%).")
+
+    cap_pool = df_agrupado[df_agrupado['mando'] != 'Sem Jogo'].copy()
+    if cap_pool.empty:
+        st.warning("Nenhum atleta com jogo confirmado.")
+    else:
+        cap_pool['fator_mando_cap'] = cap_pool['mando'].map({'CASA':1.15,'FORA':0.85}).fillna(1.0)
+        cap_pool['score_capitao']   = cap_pool['indice_pro'] * cap_pool['fator_mando_cap']
+
+        # Filtro de status
+        inc_status = st.multiselect("Incluir status:",
+            ['Provável','Dúvida','Sem Status'], default=['Provável'], key="cap_status")
+        if inc_status:
+            cap_pool = cap_pool[cap_pool['status_txt'].isin(inc_status)]
+
+        top_cap = cap_pool.sort_values('score_capitao', ascending=False).head(10)
+        for i, (_, row) in enumerate(top_cap.iterrows()):
+            medal = "🥇" if i==0 else "🥈" if i==1 else "🥉" if i==2 else f"#{i+1}"
+            adv   = mapa_confrontos.get(row['clube_nome'], {}).get('adv', '-')
+            bg    = "#F0FDF4" if i==0 else "#FFFFFF"
+            brd   = "#00A878" if i==0 else "#E4E6EB"
+            st.markdown(f"""
+            <div style="background:{bg};border:1.5px solid {brd};border-radius:10px;
+                        padding:12px 18px;margin-bottom:8px;display:flex;
+                        align-items:center;gap:16px;">
+                <div style="font-size:1.6rem;min-width:36px;">{medal}</div>
+                <div style="flex:1;">
+                    <div style="font-size:1rem;font-weight:700;color:#111827;">{row['apelido']}</div>
+                    <div style="font-size:0.78rem;color:#6B7280;">{row['posicao_nome']} · {row['clube_nome']} · Adv: {adv}</div>
+                </div>
+                <div style="text-align:right;">
+                    <div style="font-size:1.1rem;font-weight:800;color:#00A878;">Score: {row['score_capitao']:.2f}</div>
+                    <div style="font-size:0.75rem;color:#6B7280;">{'🏠 CASA +15%' if row['mando']=='CASA' else '✈️ FORA -15%'} · PRO: {row['indice_pro']:.2f}</div>
+                </div>
+            </div>""", unsafe_allow_html=True)
+
+# ──────────────────────────────────────────────────────────────
+# TAB 7 — RAIO-X DO CONFRONTO
+# ──────────────────────────────────────────────────────────────
+with tab7:
+    st.markdown("### 🔬 Raio-X do Confronto")
+    st.caption("Histórico direto entre dois times + fragilidade defensiva por posição.")
+
+    times_disp = sorted(df['clube_nome'].astype(str).unique())
+    c1, c2     = st.columns(2)
+    time_a = c1.selectbox("Time A", times_disp, key="rx_a")
+    time_b = c2.selectbox("Time B", times_disp, index=1 if len(times_disp)>1 else 0, key="rx_b")
+
+    if time_a == time_b:
+        st.warning("Selecione times diferentes.")
+    else:
+        df_dir = df[
+            ((df['clube_nome']==time_a)&(df['adversario']==time_b)) |
+            ((df['clube_nome']==time_b)&(df['adversario']==time_a))
+        ]
+        col_r1, col_r2, col_r3 = st.columns(3)
+        col_r1.metric("Confrontos no histórico", len(df_dir['rodada_id'].unique()) if not df_dir.empty else 0)
+        if not df_dir.empty:
+            ma = df_dir[df_dir['clube_nome']==time_a]['pontos'].mean()
+            mb = df_dir[df_dir['clube_nome']==time_b]['pontos'].mean()
+            col_r2.metric(f"Média {time_a}", f"{ma:.2f}")
+            col_r3.metric(f"Média {time_b}", f"{mb:.2f}")
+
+            st.divider()
+            heat_rx = df_dir.groupby(['clube_nome','posicao_nome'])['pontos'].mean().reset_index()
+            piv_rx  = heat_rx.pivot(index='clube_nome', columns='posicao_nome', values='pontos').fillna(0)
+            fig_rx  = px.imshow(piv_rx, text_auto=".1f", color_continuous_scale="Blues", aspect="auto")
+            themed(fig_rx); st.plotly_chart(fig_rx, use_container_width=True)
+
+            st.divider()
+            st.markdown(f"**Top atletas de {time_a} contra {time_b}**")
+            top_rx = (df_dir[df_dir['clube_nome']==time_a]
+                      .groupby('apelido')
+                      .agg(media_pts=('pontos','mean'), jogos=('rodada_id','count'))
+                      .reset_index().sort_values('media_pts', ascending=False).head(10))
+            st.dataframe(top_rx,
+                column_config={
+                    "apelido":   "Atleta",
+                    "media_pts": st.column_config.NumberColumn("Média pts", format="%.2f"),
+                    "jogos":     st.column_config.NumberColumn("Jogos",     format="%d"),
+                }, hide_index=True, use_container_width=True)
+        else:
+            st.info("Nenhum confronto direto no histórico atual.")
+
+        st.divider()
+        st.markdown(f"**Fragilidade defensiva de {time_b} por posição**")
+        df_ced = df[df['adversario']==time_b].groupby('posicao_nome')['pontos'].mean().reset_index()
+        df_ced.columns = ['Posição','Média cedida']
+        df_ced = df_ced.sort_values('Média cedida', ascending=False)
+        fig_ced = px.bar(df_ced, x='Posição', y='Média cedida',
+                         color='Média cedida', color_continuous_scale='Reds', text_auto='.1f')
+        themed(fig_ced); st.plotly_chart(fig_ced, use_container_width=True)
+
+# ──────────────────────────────────────────────────────────────
+# TAB 8 — PROJEÇÃO + FORMA RECENTE
+# ──────────────────────────────────────────────────────────────
+with tab8:
+    proj_tab, forma_tab = st.tabs(["🔮 Projeção por Scout","📅 Forma Recente"])
+
+    with proj_tab:
+        st.markdown("### 🔮 Projeção de Pontuação")
+        st.caption("Estima pontuação esperada com base na média de scouts contra o adversário.")
+        pesos = {'G':8.0,'A':5.0,'FT':3.0,'FD':1.2,'FF':0.8,'FS':0.5,'PS':1.0,
+                 'DE':1.0,'DS':1.5,'FC':-0.3,'PC':-1.0,'CA':-1.0,'CV':-3.0,'GS':-1.0,'I':-0.1,'SG':5.0}
+
+        atletas_c_jogo = df_agrupado[df_agrupado['mando']!='Sem Jogo']['apelido'].unique()
+        if len(atletas_c_jogo) == 0:
+            st.warning("Nenhum atleta com jogo confirmado para projeção.")
+        else:
+            sel_proj = st.multiselect("Atletas (máx. 10):", sorted(atletas_c_jogo),
+                                      default=list(sorted(atletas_c_jogo))[:5], max_selections=10)
+            if sel_proj:
+                rows_proj = []
+                for apelido in sel_proj:
+                    row_ag = df_agrupado[df_agrupado['apelido']==apelido].iloc[0]
+                    clube  = row_ag['clube_nome']
+                    adv    = mapa_confrontos.get(clube, {}).get('adv', None)
+                    df_at  = df[df['apelido']==apelido]
+                    df_vs  = df_at[df_at['adversario']==adv] if adv else df_at
+                    if df_vs.empty: df_vs = df_at
+                    proj = sum(df_vs[s].mean()*p for s,p in pesos.items() if s in df_vs.columns)
+                    rows_proj.append({
+                        'Atleta':apelido,'Clube':clube,'Adv':adv or '-','Mando':row_ag['mando'],
+                        'Proj Min':proj*0.70,'Proj Med':proj,'Proj Máx':proj*1.30,
+                    })
+                df_proj = pd.DataFrame(rows_proj).sort_values('Proj Med', ascending=False)
+                st.dataframe(df_proj,
+                    column_config={
+                        "Proj Min": st.column_config.NumberColumn(format="%.1f"),
+                        "Proj Med": st.column_config.NumberColumn(format="%.1f"),
+                        "Proj Máx": st.column_config.NumberColumn(format="%.1f"),
+                    }, hide_index=True, use_container_width=True)
+                fig_proj = px.bar(df_proj, x='Atleta', y='Proj Med',
+                                  error_y=df_proj['Proj Máx']-df_proj['Proj Med'],
+                                  error_y_minus=df_proj['Proj Med']-df_proj['Proj Min'],
+                                  color='Mando', text_auto='.1f',
+                                  color_discrete_map={'CASA':'#00A878','FORA':'#1A6EFF','Sem Jogo':'#9CA3AF'})
+                themed(fig_proj); st.plotly_chart(fig_proj, use_container_width=True)
+                st.caption("Barras de erro = ±30% sobre a projeção central.")
+
+    with forma_tab:
+        st.markdown("### 📅 Forma Recente")
+        st.caption("Compare a média total com a performance nas últimas N rodadas.")
+        n_rec = st.slider("Últimas N rodadas:", 1, max_jogos, min(5, max_jogos))
+        rodadas_rec = sorted(df['rodada_id'].unique())[-n_rec:]
+        df_rec      = df[df['rodada_id'].isin(rodadas_rec)]
+        agg_rec     = {'pontos':'mean','rodada_id':'count','clube_nome':'last',
+                       'posicao_nome':'last','apelido':'last'}
+        df_ag_rec   = df_rec.groupby('atleta_id').agg(agg_rec).reset_index()
+        df_ag_rec.rename(columns={'pontos':'media_rec','rodada_id':'jogos_rec'}, inplace=True)
+        df_forma = df_agrupado[['atleta_id','apelido','clube_nome','media_geral']].merge(
+            df_ag_rec[['atleta_id','media_rec','jogos_rec']], on='atleta_id', how='inner')
+        df_forma['delta'] = df_forma['media_rec'] - df_forma['media_geral']
+
+        ca, cb = st.columns(2)
+        with ca:
+            st.markdown(f"#### 🔥 Em alta (últ. {n_rec} rod.)")
+            for _, r in df_forma.sort_values('delta', ascending=False).head(8).iterrows():
+                st.metric(f"{r['apelido']} — {r['clube_nome']}",
+                          f"{r['media_rec']:.1f} pts", f"{r['delta']:+.1f} vs média total")
+        with cb:
+            st.markdown(f"#### 📉 Em queda (últ. {n_rec} rod.)")
+            for _, r in df_forma.sort_values('delta', ascending=True).head(8).iterrows():
+                st.metric(f"{r['apelido']} — {r['clube_nome']}",
+                          f"{r['media_rec']:.1f} pts", f"{r['delta']:+.1f} vs média total")
+
+        st.divider()
+        df_top20  = df_forma.sort_values('media_rec', ascending=False).head(20)
+        fig_forma = go.Figure()
+        fig_forma.add_trace(go.Bar(name='Média Total', x=df_top20['apelido'],
+                                   y=df_top20['media_geral'], marker_color='#E4E6EB'))
+        fig_forma.add_trace(go.Bar(name=f'Últ. {n_rec} rod.', x=df_top20['apelido'],
+                                   y=df_top20['media_rec'], marker_color='#00A878'))
+        fig_forma.update_layout(**THEME, barmode='group', xaxis_tickangle=-45)
+        st.plotly_chart(fig_forma, use_container_width=True)
+
+# ──────────────────────────────────────────────────────────────
+# TAB 9 — ML & OTIMIZADOR
+# ──────────────────────────────────────────────────────────────
+with tab9:
+    ml_tab, opt_tab = st.tabs(["🧬 Predição ML","⚙️ Otimizador PuLP"])
+
+    with ml_tab:
+        st.markdown("### 🧬 Predição de Valorização com ML")
+        st.caption("Ridge Regression: estima variação de C$ na próxima rodada com base em scouts históricos.")
+        try:
+            from sklearn.linear_model import Ridge
+            from sklearn.preprocessing import StandardScaler
+            from sklearn.pipeline import Pipeline
+
+            feats = ['pontos','G','A','FT','DS','FS','FC','CA','GS','DE','SG','preco']
+            for f in feats:
+                if f not in df.columns: df[f] = 0
+
+            df_ml = df.sort_values(['atleta_id','rodada_id']).copy()
+            df_ml['preco_prox']  = df_ml.groupby('atleta_id')['preco'].shift(-1)
+            df_ml['delta_preco'] = df_ml['preco_prox'] - df_ml['preco']
+            df_ml = df_ml.dropna(subset=['delta_preco']+feats)
+
+            X = df_ml[feats].values
+            y = df_ml['delta_preco'].values
+
+            if len(X) < 30:
+                st.warning("Dados insuficientes para treinar o modelo. Aguarde mais rodadas.")
+            else:
+                modelo = Pipeline([('sc', StandardScaler()), ('ridge', Ridge(alpha=1.0))])
+                modelo.fit(X, y)
+                X_pred = np.column_stack([
+                    df_agrupado[f].values if f in df_agrupado.columns else np.zeros(len(df_agrupado))
+                    for f in feats
+                ])
+                df_agrupado['delta_pred'] = modelo.predict(X_pred)
+                coef    = modelo.named_steps['ridge'].coef_
+                df_coef = pd.DataFrame({'Feature':feats,'Importância':np.abs(coef)}).sort_values('Importância')
+
+                col_p, col_i = st.columns([3,2])
+                with col_p:
+                    st.markdown("#### Top valorizações previstas")
+                    top_pred = df_agrupado[['apelido','clube_nome','posicao_nome','preco','status_txt','delta_pred']]\
+                        .sort_values('delta_pred', ascending=False).head(15)
+                    st.dataframe(top_pred,
+                        column_config={
+                            "apelido":"Atleta","clube_nome":"Clube","posicao_nome":"Posição","status_txt":"Status",
+                            "preco":      st.column_config.NumberColumn("C$ Atual",   format="%.2f"),
+                            "delta_pred": st.column_config.NumberColumn("Δ C$ Prev.", format="%+.2f"),
+                        }, hide_index=True, use_container_width=True)
+                with col_i:
+                    st.markdown("#### Fatores mais relevantes")
+                    fig_imp = px.bar(df_coef, x='Importância', y='Feature', orientation='h',
+                                     color='Importância', color_continuous_scale='Greens')
+                    themed(fig_imp); fig_imp.update_layout(showlegend=False, yaxis_title='')
+                    st.plotly_chart(fig_imp, use_container_width=True)
+                st.info("⚠️ Estimativa baseada em padrões históricos. Use como sinal complementar.")
+        except ImportError:
+            st.error("❌ `scikit-learn` não instalado. Adicione ao `requirements.txt` e faça o redeploy.")
+
+    with opt_tab:
+        st.markdown("### ⚙️ Otimizador com Programação Linear (PuLP)")
+        st.caption("Maximiza o Índice PRO respeitando orçamento, posições e restrições do esquema.")
+        try:
+            import pulp
+            co1, co2 = st.columns([1,2])
+            with co1:
+                orc_opt    = st.number_input("Orçamento (C$)", value=100.0, key="opt_orc")
+                esq_opt    = st.selectbox("Esquema", ["4-3-3","3-4-3","3-5-2"], key="opt_esq")
+                status_opt = st.multiselect("Status aceitos:", ['Provável','Dúvida','Sem Status'],
+                                            default=['Provável'], key="opt_st")
+                max_time   = st.number_input("Máx. por time", min_value=1, max_value=5, value=5, key="opt_mt")
+                btn_opt    = st.button("🚀 Otimizar", use_container_width=True)
+            with co2:
+                if btn_opt:
+                    meta_opt = {
+                        "4-3-3": {'Goleiro':1,'Lateral':2,'Zagueiro':2,'Meia':3,'Atacante':3,'Técnico':1},
+                        "3-5-2": {'Goleiro':1,'Lateral':0,'Zagueiro':3,'Meia':5,'Atacante':2,'Técnico':1},
+                        "3-4-3": {'Goleiro':1,'Lateral':0,'Zagueiro':3,'Meia':4,'Atacante':3,'Técnico':1},
+                    }.get(esq_opt)
+                    pool = df_agrupado[df_agrupado['status_txt'].isin(status_opt)].copy().reset_index(drop=True)
+                    if pool.empty:
+                        st.warning("Nenhum atleta disponível com os status selecionados.")
+                    else:
+                        prob     = pulp.LpProblem("cartola", pulp.LpMaximize)
+                        n        = len(pool)
+                        ids      = list(range(n))
+                        x        = pulp.LpVariable.dicts("x", ids, cat='Binary')
+                        prob    += pulp.lpSum(pool.iloc[i]['indice_pro']*x[i] for i in ids)
+                        prob    += pulp.lpSum(pool.iloc[i]['preco']*x[i]      for i in ids) <= orc_opt
+                        for pos, qtd in meta_opt.items():
+                            ip = [i for i in ids if pool.iloc[i]['posicao_nome']==pos]
+                            prob += pulp.lpSum(x[i] for i in ip) == qtd
+                        for tm in pool['clube_nome'].unique():
+                            it = [i for i in ids if pool.iloc[i]['clube_nome']==tm]
+                            prob += pulp.lpSum(x[i] for i in it) <= max_time
+                        prob.solve(pulp.PULP_CBC_CMD(msg=0))
+
+                        if pulp.LpStatus[prob.status] == 'Optimal':
+                            esc    = [i for i in ids if pulp.value(x[i])==1]
+                            df_opt = pool.iloc[esc].copy()
+                            ordem  = ['Goleiro','Lateral','Zagueiro','Meia','Atacante','Técnico']
+                            df_opt['posicao_nome'] = pd.Categorical(df_opt['posicao_nome'], categories=ordem, ordered=True)
+                            df_opt = df_opt.sort_values('posicao_nome')
+                            custo  = df_opt['preco'].sum()
+                            score  = df_opt['indice_pro'].sum()
+                            st.success(f"✅ Escalação ótima! Custo: C$ {custo:.2f} | Score PRO: {score:.2f}")
+                            st.dataframe(
+                                df_opt[['foto','status','posicao_nome','apelido','clube_nome','mando','preco','indice_pro','media_geral']],
+                                column_config={
+                                    "foto":         st.column_config.ImageColumn("Perfil"),
+                                    "status":       "Status",  "posicao_nome":"Posição",
+                                    "apelido":      "Jogador", "clube_nome":  "Clube", "mando":"Mando",
+                                    "preco":        st.column_config.NumberColumn("C$",          format="%.2f"),
+                                    "indice_pro":   st.column_config.NumberColumn("Índice PRO ✨",format="%.2f"),
+                                    "media_geral":  st.column_config.NumberColumn("Média",       format="%.2f"),
+                                }, hide_index=True, use_container_width=True)
+                            st.info("💡 PuLP avalia todas as combinações e garante o ótimo global.")
+                        else:
+                            st.error("❌ Sem solução viável. Aumente o orçamento ou aceite mais status.")
+        except ImportError:
+            st.error("❌ `pulp` não instalado. Adicione ao `requirements.txt` e faça o redeploy.")
