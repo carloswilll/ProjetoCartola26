@@ -2,8 +2,6 @@ streamlit
 pandas
 plotly
 requests
-supabase
+numpy
 scikit-learn
 pulp
-numpy
-lxml
