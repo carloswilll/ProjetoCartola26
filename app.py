@@ -43,7 +43,7 @@ st.markdown("""
     max-width: 1400px;
 }
 
-/* ── Sidebar — força dark mode completo ── */
+/* ── Sidebar — fundo escuro, filtros BRANCOS com fonte preta ── */
 [data-testid="stSidebar"],
 [data-testid="stSidebar"] > div,
 [data-testid="stSidebar"] > div > div,
@@ -51,58 +51,63 @@ section[data-testid="stSidebar"] > div {
     background-color: #14141F !important;
     border-right: 1px solid var(--border);
 }
-/* Labels e texto da sidebar */
+/* Títulos e labels da sidebar em branco */
 [data-testid="stSidebar"] label,
 [data-testid="stSidebar"] p,
-[data-testid="stSidebar"] span,
-[data-testid="stSidebar"] .stMarkdown,
-[data-testid="stSidebar"] .stSlider label,
-[data-testid="stSidebar"] [data-testid="stWidgetLabel"] {
-    color: var(--text-2) !important;
+[data-testid="stSidebar"] .stMarkdown p,
+[data-testid="stSidebar"] [data-testid="stWidgetLabel"] p {
+    color: #EEEDF0 !important;
 }
-/* Inputs da sidebar */
+/* Inputs da sidebar — fundo BRANCO, fonte PRETA */
 [data-testid="stSidebar"] .stMultiSelect > div > div,
 [data-testid="stSidebar"] .stSelectbox > div > div,
-[data-testid="stSidebar"] .stNumberInput > div > div,
+[data-testid="stSidebar"] .stNumberInput > div > div > input,
 [data-testid="stSidebar"] input {
-    background-color: #1A1A28 !important;
-    border-color: var(--border) !important;
-    color: var(--text-1) !important;
+    background-color: #FFFFFF !important;
+    border-color: #D0D0D0 !important;
+    color: #111111 !important;
+    border-radius: 8px !important;
 }
-/* Tags do multiselect */
+/* Tags do multiselect — branco com texto preto */
 [data-testid="stSidebar"] span[data-baseweb="tag"] {
-    background-color: #2A2A3C !important;
-    color: var(--text-1) !important;
+    background-color: #E8E8E8 !important;
+    color: #111111 !important;
 }
-/* Slider */
-[data-testid="stSidebar"] [data-testid="stSlider"] div[role="slider"] {
-    background-color: var(--green) !important;
+/* Ícone X das tags */
+[data-testid="stSidebar"] span[data-baseweb="tag"] span { color: #555 !important; }
+/* Dropdown popup da sidebar */
+[data-testid="stSidebar"] [data-baseweb="popover"],
+[data-testid="stSidebar"] [data-baseweb="menu"] {
+    background-color: #FFFFFF !important;
+    border: 1px solid #D0D0D0 !important;
 }
+[data-testid="stSidebar"] [data-baseweb="option"] { color: #111111 !important; }
+[data-testid="stSidebar"] [data-baseweb="option"]:hover { background-color: #F0F0F0 !important; }
+/* Slider thumb verde */
+[data-testid="stSidebar"] [role="slider"] { background-color: var(--green) !important; }
 /* Divider */
 [data-testid="stSidebar"] hr { border-color: var(--border) !important; }
 
-/* ── Área principal inputs ── */
+/* ── Área principal — inputs também brancos ── */
 .stSelectbox > div > div,
 .stMultiSelect > div > div,
 .stNumberInput > div > div,
 .stTextInput > div > div {
-    background-color: var(--bg-card) !important;
-    border-color: var(--border) !important;
-    color: var(--text-1) !important;
+    background-color: #FFFFFF !important;
+    border-color: #D0D0D0 !important;
+    color: #111111 !important;
     border-radius: 8px !important;
 }
 span[data-baseweb="tag"] {
-    background-color: #2A2A3C !important;
-    color: var(--text-1) !important;
+    background-color: #E8E8E8 !important;
+    color: #111111 !important;
 }
-/* Dropdown popup */
-[data-baseweb="popover"] [data-baseweb="menu"],
-[data-baseweb="select"] [data-baseweb="popover"] {
-    background-color: #1A1A28 !important;
-    border: 1px solid var(--border) !important;
+[data-baseweb="popover"] [data-baseweb="menu"] {
+    background-color: #FFFFFF !important;
+    border: 1px solid #D0D0D0 !important;
 }
-[data-baseweb="option"] { color: var(--text-1) !important; }
-[data-baseweb="option"]:hover { background-color: #2A2A3C !important; }
+[data-baseweb="option"] { color: #111111 !important; }
+[data-baseweb="option"]:hover { background-color: #F0F0F0 !important; }
 
 /* ── Título e texto ── */
 h1, h2, h3 { color: var(--text-1) !important; }
@@ -875,15 +880,17 @@ with tab4:
     st.divider()
     sec("DISTRIBUIÇÃO: PREÇO × ÍNDICE PRO")
     if not df_merc.empty:
+        # ✅ sem size= para evitar ValueError com valores zero/negativos
         fig_sc2 = px.scatter(
             df_merc, x='preco', y='indice_pro', color='posicao_nome',
-            size='media_geral', hover_name='apelido',
+            hover_name='apelido',
             hover_data={'clube_nome':True,'media_geral':':.1f','preco':':.2f','indice_pro':':.2f'},
             labels={'preco':'Preço (C$)','indice_pro':'Índice PRO','posicao_nome':'Posição'},
             color_discrete_sequence=COLORS,
         )
         themed(fig_sc2)
-        fig_sc2.update_traces(marker=dict(opacity=0.8, line=dict(width=0.5, color='rgba(255,255,255,0.1)')))
+        fig_sc2.update_traces(marker=dict(size=8, opacity=0.8,
+                              line=dict(width=0.5, color='rgba(255,255,255,0.1)')))
         st.plotly_chart(fig_sc2, use_container_width=True)
 
 # ──────────────────────────────────────────────────────────────
