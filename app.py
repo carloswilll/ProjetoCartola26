@@ -894,48 +894,59 @@ with tab1:
 
             # ── Top 3 indicações por time ──────────────────────
             st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
-            col_a, col_sep, col_b = st.columns([5, 1, 5])
 
+            def _render_indicacoes(top_df: pd.DataFrame, adv_clube: str, cor_pro: str):
+                """Renderiza cards + tabela comparativa de scouts dos indicados."""
+                for rank, (_, at) in enumerate(top_df.iterrows()):
+                    medal = ["🥇","🥈","🥉"][rank] if rank < 3 else f"#{rank+1}"
+                    # Média específica vs adversário
+                    hist_vs = df[(df["atleta_id"] == at["atleta_id"]) & (df["adversario"] == adv_clube)]
+                    media_vs = hist_vs["pontos"].mean() if not hist_vs.empty else None
+                    media_vs_txt = f"<span style='color:#E09B00;font-size:0.7rem;'>⚡ {media_vs:.1f} pts vs {adv_clube}</span>" if media_vs else ""
+                    st.markdown(f"""
+                    <div style="display:flex;align-items:center;gap:10px;padding:10px 0;
+                                border-bottom:1px solid #F3F4F6;">
+                        <span style="font-size:1.1rem;min-width:28px;">{medal}</span>
+                        <div style="flex:1;">
+                            <div style="font-size:0.9rem;font-weight:700;color:#111827;">{at['apelido']}</div>
+                            <div style="font-size:0.72rem;color:#6B7280;">{at['posicao_nome']} · {at['status']}</div>
+                            {media_vs_txt}
+                        </div>
+                        <div style="text-align:right;">
+                            <div style="font-size:0.85rem;font-weight:700;color:{cor_pro};">PRO {at['indice_pro']:.1f}</div>
+                            <div style="font-size:0.72rem;color:#6B7280;">Média {at['media_geral']:.1f} · C$ {at['preco']:.1f}</div>
+                        </div>
+                    </div>""", unsafe_allow_html=True)
+
+                # Tabela comparativa de scouts dos indicados
+                if not top_df.empty:
+                    scouts_exibir = ["G","A","FT","DS","FS","FC","CA","DE","SG"]
+                    cols_existem  = [s for s in scouts_exibir if s in top_df.columns]
+                    df_sc = top_df[["apelido","media_geral","indice_pro","preco"] + cols_existem].copy()
+                    df_sc = df_sc.rename(columns={"apelido":"Atleta","media_geral":"Média","indice_pro":"PRO","preco":"C$"})
+                    st.dataframe(
+                        df_sc,
+                        column_config={
+                            "Atleta": st.column_config.TextColumn(width="medium"),
+                            "Média":  st.column_config.NumberColumn(format="%.1f"),
+                            "PRO":    st.column_config.NumberColumn(format="%.1f"),
+                            "C$":     st.column_config.NumberColumn(format="%.2f"),
+                            **{s: st.column_config.NumberColumn(format="%d") for s in cols_existem},
+                        },
+                        hide_index=True, use_container_width=True,
+                    )
+
+            col_a, col_sep, col_b = st.columns([5, 1, 5])
             with col_a:
                 st.markdown(f"**🎯 Indicações — {time_a}**")
-                for rank, (_, at) in enumerate(top_a.iterrows()):
-                    medal = ["🥇","🥈","🥉"][rank] if rank < 3 else f"#{rank+1}"
-                    st.markdown(f"""
-                    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;
-                                border-bottom:1px solid #F3F4F6;">
-                        <span style="font-size:1.1rem;">{medal}</span>
-                        <div style="flex:1;">
-                            <div style="font-size:0.88rem;font-weight:700;color:#111827;">{at['apelido']}</div>
-                            <div style="font-size:0.72rem;color:#6B7280;">{at['posicao_nome']} · {at['status']}</div>
-                        </div>
-                        <div style="text-align:right;">
-                            <div style="font-size:0.82rem;font-weight:700;color:#00A878;">PRO {at['indice_pro']:.1f}</div>
-                            <div style="font-size:0.7rem;color:#9CA3AF;">C$ {at['preco']:.1f}</div>
-                        </div>
-                    </div>""", unsafe_allow_html=True)
-
+                _render_indicacoes(top_a, time_b, "#00A878")
             with col_sep:
-                st.markdown('<div style="border-left:1px solid #E4E6EB;height:120px;margin:8px auto;width:1px;"></div>', unsafe_allow_html=True)
-
+                st.markdown('<div style="border-left:1px solid #E4E6EB;height:160px;margin:8px auto;width:1px;"></div>', unsafe_allow_html=True)
             with col_b:
                 st.markdown(f"**🎯 Indicações — {time_b}**")
-                for rank, (_, at) in enumerate(top_b.iterrows()):
-                    medal = ["🥇","🥈","🥉"][rank] if rank < 3 else f"#{rank+1}"
-                    st.markdown(f"""
-                    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;
-                                border-bottom:1px solid #F3F4F6;">
-                        <span style="font-size:1.1rem;">{medal}</span>
-                        <div style="flex:1;">
-                            <div style="font-size:0.88rem;font-weight:700;color:#111827;">{at['apelido']}</div>
-                            <div style="font-size:0.72rem;color:#6B7280;">{at['posicao_nome']} · {at['status']}</div>
-                        </div>
-                        <div style="text-align:right;">
-                            <div style="font-size:0.82rem;font-weight:700;color:#1A6EFF;">PRO {at['indice_pro']:.1f}</div>
-                            <div style="font-size:0.7rem;color:#9CA3AF;">C$ {at['preco']:.1f}</div>
-                        </div>
-                    </div>""", unsafe_allow_html=True)
+                _render_indicacoes(top_b, time_a, "#1A6EFF")
 
-            st.markdown('<div style="height:10px;"></div>', unsafe_allow_html=True)
+            st.markdown('<div style="height:16px;"></div>', unsafe_allow_html=True)
 
 # ──────────────────────────────────────────────────────────────
 # TAB 2 — OTIMIZADOR PuLP + COMPARADOR
@@ -1260,105 +1271,128 @@ with tab7:
     proj_tab, forma_tab = st.tabs(["🔮 Projeção por Posição","📅 Forma Recente"])
 
     with proj_tab:
-        st.markdown("### 🔮 Projeção de Pontuação — Todos os Atletas com Jogo")
-        st.caption("Ranking automático por posição. Só exibe atletas com jogo confirmado. Projeção = média ponderada de scouts contra o adversário.")
+        st.markdown("### 🔮 Projeção de Pontuação")
+        st.caption("Todos os atletas com jogo confirmado. Projeção = média ponderada de scouts contra o adversário específico (ou geral, se não houver histórico).")
 
         PESOS_PROJ = {"G":8.0,"A":5.0,"FT":3.0,"FD":1.2,"FF":0.8,"FS":0.5,"PS":1.0,
                       "DE":1.0,"DS":1.5,"FC":-0.3,"PC":-1.0,"CA":-1.0,"CV":-3.0,"GS":-1.0,"I":-0.1,"SG":5.0}
 
-        # Filtros leves
-        cf1, cf2, cf3 = st.columns([2,2,2])
-        with cf1:
-            pos_filtro = st.multiselect(
-                "Posição:", sorted(df_agrupado["posicao_nome"].unique()),
-                default=sorted(df_agrupado["posicao_nome"].unique()), key="proj_pos"
-            )
-        with cf2:
-            st_filtro = st.multiselect(
-                "Status:", ["Provável","Dúvida","Sem Status"],
-                default=["Provável","Dúvida"], key="proj_st"
-            )
-        with cf3:
-            top_n = st.slider("Top N por posição:", 3, 20, 10, key="proj_n")
+        # Calcula projeção para TODOS os atletas com jogo
+        pool_proj = df_agrupado[df_agrupado["mando"] != "Sem Jogo"].copy()
 
-        atletas_com_jogo = df_agrupado[
-            (df_agrupado["mando"] != "Sem Jogo") &
-            (df_agrupado["posicao_nome"].isin(pos_filtro)) &
-            (df_agrupado["status_txt"].isin(st_filtro))
-        ].copy()
-
-        if atletas_com_jogo.empty:
-            st.warning("Nenhum atleta com jogo confirmado nos filtros selecionados.")
+        if pool_proj.empty:
+            st.warning("Nenhum atleta com jogo confirmado nesta rodada.")
         else:
-            # Calcula projeção para todos de uma vez
             rows_proj = []
-            for _, row_ag in atletas_com_jogo.iterrows():
+            for _, row_ag in pool_proj.iterrows():
                 clube = row_ag["clube_nome"]
                 adv   = mapa_confrontos.get(clube, {}).get("adv", None)
                 df_at = df[df["atleta_id"] == row_ag["atleta_id"]]
                 df_vs = df_at[df_at["adversario"] == adv] if adv else df_at
                 if df_vs.empty:
                     df_vs = df_at
-                proj = sum(df_vs[s].mean() * p for s, p in PESOS_PROJ.items() if s in df_vs.columns and not np.isnan(df_vs[s].mean()))
+                proj = sum(
+                    df_vs[s].mean() * p
+                    for s, p in PESOS_PROJ.items()
+                    if s in df_vs.columns and not np.isnan(df_vs[s].mean())
+                )
                 rows_proj.append({
-                    "atleta_id":   row_ag["atleta_id"],
-                    "Atleta":      row_ag["apelido"],
-                    "Posição":     row_ag["posicao_nome"],
-                    "Clube":       clube,
-                    "Adv":         adv or "-",
-                    "Mando":       row_ag["mando"],
-                    "Status":      row_ag["status_txt"],
-                    "C$":          row_ag["preco"],
-                    "Índice PRO":  row_ag["indice_pro"],
-                    "Proj Min":    proj * 0.70,
-                    "Proj Med":    proj,
-                    "Proj Máx":    proj * 1.30,
-                    "Média Real":  row_ag["media_geral"],
+                    "atleta_id":  row_ag["atleta_id"],
+                    "Atleta":     row_ag["apelido"],
+                    "Posição":    row_ag["posicao_nome"],
+                    "Clube":      clube,
+                    "Adv":        adv or "-",
+                    "Mando":      row_ag["mando"],
+                    "Status":     row_ag["status_txt"],
+                    "C$":         row_ag["preco"],
+                    "Índice PRO": round(row_ag["indice_pro"], 2),
+                    "C/B":        round(row_ag["custo_beneficio"], 2),
+                    "Média Real": round(row_ag["media_geral"], 1),
+                    "Proj Min":   round(proj * 0.70, 1),
+                    "Proj Med":   round(proj, 1),
+                    "Proj Máx":   round(proj * 1.30, 1),
                 })
 
-            df_proj_all = pd.DataFrame(rows_proj)
+            df_proj_all = pd.DataFrame(rows_proj).sort_values("Proj Med", ascending=False)
 
-            # Ranking por posição
-            ordem_pos = ["Goleiro","Lateral","Zagueiro","Meia","Atacante","Técnico"]
-            for pos in ordem_pos:
-                df_p = df_proj_all[df_proj_all["Posição"] == pos].sort_values("Proj Med", ascending=False).head(top_n)
-                if df_p.empty:
-                    continue
-
-                sec(f"{pos.upper()} — TOP {len(df_p)}")
-
-                # Gráfico compacto horizontal
-                fig_p = px.bar(
-                    df_p, y="Atleta", x="Proj Med",
-                    error_x=df_p["Proj Máx"] - df_p["Proj Med"],
-                    error_x_minus=df_p["Proj Med"] - df_p["Proj Min"],
-                    color="Mando", orientation="h",
-                    text=df_p["Proj Med"].apply(lambda v: f"{v:.1f}"),
-                    color_discrete_map={"CASA":"#00A878","FORA":"#1A6EFF"},
-                    labels={"Proj Med":"Projeção (pts)"},
-                    height=max(220, len(df_p) * 38),
+            # ── Filtros ──────────────────────────────────────────
+            pf1, pf2, pf3, pf4 = st.columns([2, 2, 2, 2])
+            with pf1:
+                pos_f = st.multiselect(
+                    "Posição:", sorted(df_proj_all["Posição"].unique()),
+                    default=sorted(df_proj_all["Posição"].unique()), key="pf_pos"
                 )
-                themed(fig_p)
-                fig_p.update_traces(textposition="outside")
-                fig_p.update_layout(yaxis=dict(autorange="reversed"), legend_title_text="Mando")
-                st.plotly_chart(fig_p, use_container_width=True)
-
-                # Tabela compacta
-                st.dataframe(
-                    df_p[["Atleta","Clube","Adv","Mando","Status","C$","Índice PRO","Proj Min","Proj Med","Proj Máx","Média Real"]],
-                    column_config={
-                        "C$":         st.column_config.NumberColumn(format="%.2f"),
-                        "Índice PRO": st.column_config.NumberColumn(format="%.2f"),
-                        "Proj Min":   st.column_config.NumberColumn(format="%.1f"),
-                        "Proj Med":   st.column_config.NumberColumn(format="%.1f"),
-                        "Proj Máx":   st.column_config.NumberColumn(format="%.1f"),
-                        "Média Real": st.column_config.NumberColumn(format="%.1f"),
-                    },
-                    hide_index=True, use_container_width=True,
+            with pf2:
+                time_f = st.multiselect(
+                    "Clube:", sorted(df_proj_all["Clube"].unique()),
+                    default=sorted(df_proj_all["Clube"].unique()), key="pf_clube"
                 )
-                st.markdown('<div style="height:10px;"></div>', unsafe_allow_html=True)
+            with pf3:
+                st_f = st.multiselect(
+                    "Status:", ["Provável","Dúvida","Sem Status"],
+                    default=["Provável","Dúvida"], key="pf_status"
+                )
+            with pf4:
+                ord_proj = st.selectbox(
+                    "Ordenar por:", ["Proj Med","Índice PRO","Média Real","C$","C/B"],
+                    key="pf_ord"
+                )
 
-            st.caption("Barras de erro = ±30% sobre a projeção central. Ordenação por Proj Med dentro de cada posição.")
+            df_view = df_proj_all[
+                df_proj_all["Posição"].isin(pos_f) &
+                df_proj_all["Clube"].isin(time_f) &
+                df_proj_all["Status"].isin(st_f)
+            ].sort_values(ord_proj, ascending=(ord_proj == "C$"))
+
+            # KPIs rápidos
+            k1, k2, k3, k4 = st.columns(4)
+            k1.metric("Atletas exibidos",  len(df_view))
+            k2.metric("Maior projeção",    f"{df_view['Proj Med'].max():.1f} pts" if not df_view.empty else "-")
+            k3.metric("Melhor C/B",        f"{df_view['C/B'].max():.2f}"          if not df_view.empty else "-")
+            k4.metric("Mais barato top10", f"C$ {df_view.head(10)['C$'].min():.2f}" if len(df_view) >= 1 else "-")
+
+            # Tabela principal
+            st.dataframe(
+                df_view.drop(columns=["atleta_id"]),
+                column_config={
+                    "Atleta":     st.column_config.TextColumn(width="medium"),
+                    "Posição":    st.column_config.TextColumn(width="small"),
+                    "Clube":      st.column_config.TextColumn(width="small"),
+                    "Adv":        st.column_config.TextColumn(width="small"),
+                    "Mando":      st.column_config.TextColumn(width="small"),
+                    "Status":     st.column_config.TextColumn(width="small"),
+                    "C$":         st.column_config.NumberColumn(format="%.2f"),
+                    "Índice PRO": st.column_config.NumberColumn(format="%.2f"),
+                    "C/B":        st.column_config.NumberColumn(format="%.2f"),
+                    "Média Real": st.column_config.NumberColumn(format="%.1f"),
+                    "Proj Min":   st.column_config.NumberColumn(format="%.1f"),
+                    "Proj Med":   st.column_config.ProgressColumn(
+                        "Proj Med", format="%.1f",
+                        min_value=float(df_view["Proj Med"].min()) if not df_view.empty else 0,
+                        max_value=float(df_view["Proj Med"].max()) if not df_view.empty else 1,
+                    ),
+                    "Proj Máx":   st.column_config.NumberColumn(format="%.1f"),
+                },
+                hide_index=True, use_container_width=True, height=520,
+            )
+
+            # Gráfico dispersão Projeção × C$ (colorido por posição)
+            if not df_view.empty:
+                st.divider()
+                sec("PROJEÇÃO × PREÇO — MAPA DE VALOR")
+                fig_pv = px.scatter(
+                    df_view, x="C$", y="Proj Med",
+                    color="Posição", hover_name="Atleta",
+                    hover_data={"Clube":True,"Adv":True,"Mando":True,"Índice PRO":":.2f",
+                                "Média Real":":.1f","C$":":.2f","Proj Med":":.1f"},
+                    labels={"C$":"Preço (C$)","Proj Med":"Projeção (pts)"},
+                    color_discrete_sequence=COLORS,
+                    size_max=12,
+                )
+                themed(fig_pv)
+                fig_pv.update_traces(marker=dict(size=9, opacity=0.85, line=dict(width=0.5, color="#E4E6EB")))
+                st.plotly_chart(fig_pv, use_container_width=True)
+            st.caption("Proj Min / Proj Máx = ±30% sobre a projeção central.")
 
     with forma_tab:
         st.markdown("### 📅 Forma Recente")
