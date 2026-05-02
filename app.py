@@ -1,4 +1,4 @@
-import streamlit as st
+import streamlit as stimport streamlit as st
 import pandas as pd
 import requests
 import plotly.express as px
@@ -767,125 +767,285 @@ st.markdown('<div style="height:18px;"></div>', unsafe_allow_html=True)
 # ══════════════════════════════════════════════════════════════
 # 11. TABS
 # ══════════════════════════════════════════════════════════════
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
-    "📅 Jogos", "🤖 Robô", "📊 Tática", "📈 Mercado", "🏆 Destaques",
-    "🎯 Capitão", "🔬 Raio-X", "🔮 Projeção", "💹 Valorização", "🧬 ML & Otimizador",
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
+    "📅 Confrontos", "⚙️ Otimizador", "📊 Tática", "📈 Mercado", "🏆 Destaques",
+    "🎯 Capitão", "🔮 Projeção", "💹 Valorização", "🧬 ML",
 ])
 
 # ──────────────────────────────────────────────────────────────
-# TAB 1 — JOGOS
+# TAB 1 — CONFRONTOS DA RODADA (análise completa)
 # ──────────────────────────────────────────────────────────────
+
+# ── Helpers de análise de confrontos ─────────────────────────
+def _media_ataque_clube(clube: str) -> float:
+    """Média de pontos gerados pelos atacantes/meias do clube."""
+    sub = df[df["clube_nome"] == clube]
+    return float(sub[sub["posicao_nome"].isin(["Atacante","Meia"])]["pontos"].mean()) if not sub.empty else 0.0
+
+def _media_defesa_clube(clube: str) -> float:
+    """Quanto o clube cede de pontos para adversários (todos os jogadores contra ele)."""
+    cedido = df[df["adversario"] == clube]["pontos"].mean()
+    return float(cedido) if not np.isnan(cedido) else 0.0
+
+def _top_atletas_confronto(clube: str, adv: str, n: int = 3) -> pd.DataFrame:
+    """Top N atletas do clube considerando histórico contra o adversário + média geral."""
+    pool = df_agrupado[
+        (df_agrupado["clube_nome"] == clube) &
+        (df_agrupado["mando"] != "Sem Jogo") &
+        (~df_agrupado["status_txt"].isin(["Suspenso","Contundido","Nulo"]))
+    ].copy()
+    if pool.empty:
+        pool = df_agrupado[df_agrupado["clube_nome"] == clube].copy()
+
+    # Bônus: média específica contra o adversário, se houver histórico
+    def _score_vs(row):
+        hist = df[(df["atleta_id"] == row["atleta_id"]) & (df["adversario"] == adv)]
+        if len(hist) >= 1:
+            return hist["pontos"].mean() * 0.5 + row["indice_pro"] * 0.5
+        return row["indice_pro"]
+
+    pool["score_conf"] = pool.apply(_score_vs, axis=1)
+    return pool.sort_values("score_conf", ascending=False).head(n)
+
+def _narrativa_confronto(time_a: str, time_b: str, atq_a: float, def_b: float,
+                          atq_b: float, def_a: float, mando_a: str) -> tuple[str, str]:
+    """
+    Retorna (favorito, texto de análise) baseado nas estatísticas históricas.
+    """
+    score_a = atq_a / max(def_a, 0.01) * (1.15 if mando_a == "CASA" else 0.85)
+    score_b = atq_b / max(def_b, 0.01) * (0.85 if mando_a == "CASA" else 1.15)
+
+    diff     = abs(score_a - score_b)
+    fav      = time_a if score_a >= score_b else time_b
+    underdog = time_b if fav == time_a else time_a
+
+    # Texto de análise ataque
+    if atq_a > atq_b * 1.2:
+        txt_atq = f"**{time_a}** tem o ataque mais poderoso do confronto (média {atq_a:.1f} pts vs {atq_b:.1f})."
+    elif atq_b > atq_a * 1.2:
+        txt_atq = f"**{time_b}** tem o ataque mais poderoso do confronto (média {atq_b:.1f} pts vs {atq_a:.1f})."
+    else:
+        txt_atq = f"Ataque equilibrado: {time_a} ({atq_a:.1f}) vs {time_b} ({atq_b:.1f})."
+
+    # Texto de análise defesa
+    if def_b > def_a * 1.15:
+        txt_def = f"**{time_b}** tem a defesa mais vulnerável — cede em média {def_b:.1f} pts/rodada contra {def_a:.1f} do {time_a}."
+    elif def_a > def_b * 1.15:
+        txt_def = f"**{time_a}** tem a defesa mais vulnerável — cede em média {def_a:.1f} pts/rodada contra {def_b:.1f} do {time_b}."
+    else:
+        txt_def = f"Defesas similares: {time_a} cede {def_a:.1f} pts e {time_b} cede {def_b:.1f} pts por rodada."
+
+    # Veredito
+    if diff < 0.05:
+        veredito = f"⚖️ **Jogo equilibrado.** Pequena vantagem para **{fav}** pelo histórico."
+    elif diff < 0.15:
+        veredito = f"🟡 **Leve favoritismo de {fav}.** {underdog} pode surpreender."
+    else:
+        veredito = f"🟢 **{fav} é o favorito claro** com base no histórico desta temporada."
+
+    analise = f"{txt_atq} {txt_def} {veredito}"
+    return fav, analise
+
 with tab1:
-    aba_conf, aba_tab = st.tabs(["⚽ Próximos Confrontos", "🏆 Classificação"])
-    with aba_conf:
-        sec("CONFRONTOS DA RODADA")
-        if not df_proximos.empty:
-            for _, row in df_proximos.iterrows():
-                st.markdown(f"""
-                <div class="conf-card">
-                    <div class="conf-time">{row['Mandante']}</div>
-                    <div class="conf-vs">VS</div>
-                    <div class="conf-time">{row['Visitante']}</div>
-                    <div class="conf-info">{row.get('Local','-')}<br>
-                        <span style="color:#9CA3AF;">{row.get('Data','')}</span></div>
-                </div>""", unsafe_allow_html=True)
-        else:
-            st.warning("Mercado fechado ou sem jogos previstos.")
+    sec("CONFRONTOS DA RODADA — ANÁLISE INTELIGENTE")
+    if df_proximos.empty:
+        st.warning("Mercado fechado ou sem jogos previstos para esta rodada.")
+    else:
+        for _, jogo in df_proximos.iterrows():
+            time_a = jogo["Mandante"]
+            time_b = jogo["Visitante"]
 
-    with aba_tab:
-        if not df_tabela.empty and "PJ" in df_tabela.columns:
-            sec("CLASSIFICAÇÃO — BRASILEIRÃO 2026")
-            st.dataframe(df_tabela, hide_index=True, use_container_width=True, height=600)
-        elif not df_tabela.empty:
-            sec("CLASSIFICAÇÃO — GERADA A PARTIR DO HISTÓRICO")
-            st.dataframe(df_tabela, hide_index=True, use_container_width=True, height=600)
-            st.caption("Classificação aproximada calculada a partir dos dados históricos do app.")
-        else:
-            st.info("Dados insuficientes para montar a classificação.")
+            atq_a  = _media_ataque_clube(time_a)
+            atq_b  = _media_ataque_clube(time_b)
+            def_a  = _media_defesa_clube(time_a)
+            def_b  = _media_defesa_clube(time_b)
+            fav, analise = _narrativa_confronto(time_a, time_b, atq_a, def_b, atq_b, def_a, "CASA")
+
+            top_a = _top_atletas_confronto(time_a, time_b)
+            top_b = _top_atletas_confronto(time_b, time_a)
+
+            # ── Card do confronto ──────────────────────────────
+            st.markdown(f"""
+            <div style="background:#fff;border:1px solid #E4E6EB;border-radius:14px;
+                        padding:20px 24px;margin-bottom:20px;
+                        box-shadow:0 1px 4px rgba(0,0,0,0.07);">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+                    <span style="font-size:1.15rem;font-weight:800;color:#111827;">{time_a}</span>
+                    <span style="font-size:0.7rem;font-weight:700;color:#9CA3AF;letter-spacing:0.1em;background:#F3F4F6;
+                                 padding:3px 10px;border-radius:99px;">🏠 MANDANTE vs VISITANTE ✈️</span>
+                    <span style="font-size:1.15rem;font-weight:800;color:#111827;">{time_b}</span>
+                </div>
+                <div style="font-size:0.78rem;color:#9CA3AF;text-align:center;margin-bottom:14px;">
+                    📍 {jogo.get('Local','-')} &nbsp;·&nbsp; 🕐 {jogo.get('Data','')}
+                </div>
+                <div style="background:#F7F8FA;border-radius:10px;padding:12px 16px;
+                            font-size:0.85rem;color:#374151;line-height:1.6;">
+                    {analise}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # ── Métricas comparativas ──────────────────────────
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric(f"⚔️ Ataque {time_a}",  f"{atq_a:.1f} pts",  help="Média de pontos gerados por atacantes/meias")
+            m2.metric(f"🛡️ Defesa {time_a}",  f"{def_a:.1f} ced.", help="Média de pontos cedidos por rodada", delta=f"{'vuln.' if def_a > def_b else 'sólida'}", delta_color="inverse")
+            m3.metric(f"⚔️ Ataque {time_b}",  f"{atq_b:.1f} pts")
+            m4.metric(f"🛡️ Defesa {time_b}",  f"{def_b:.1f} ced.", delta=f"{'vuln.' if def_b > def_a else 'sólida'}", delta_color="inverse")
+
+            # ── Top 3 indicações por time ──────────────────────
+            st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
+            col_a, col_sep, col_b = st.columns([5, 1, 5])
+
+            with col_a:
+                st.markdown(f"**🎯 Indicações — {time_a}**")
+                for rank, (_, at) in enumerate(top_a.iterrows()):
+                    medal = ["🥇","🥈","🥉"][rank] if rank < 3 else f"#{rank+1}"
+                    st.markdown(f"""
+                    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;
+                                border-bottom:1px solid #F3F4F6;">
+                        <span style="font-size:1.1rem;">{medal}</span>
+                        <div style="flex:1;">
+                            <div style="font-size:0.88rem;font-weight:700;color:#111827;">{at['apelido']}</div>
+                            <div style="font-size:0.72rem;color:#6B7280;">{at['posicao_nome']} · {at['status']}</div>
+                        </div>
+                        <div style="text-align:right;">
+                            <div style="font-size:0.82rem;font-weight:700;color:#00A878;">PRO {at['indice_pro']:.1f}</div>
+                            <div style="font-size:0.7rem;color:#9CA3AF;">C$ {at['preco']:.1f}</div>
+                        </div>
+                    </div>""", unsafe_allow_html=True)
+
+            with col_sep:
+                st.markdown('<div style="border-left:1px solid #E4E6EB;height:120px;margin:8px auto;width:1px;"></div>', unsafe_allow_html=True)
+
+            with col_b:
+                st.markdown(f"**🎯 Indicações — {time_b}**")
+                for rank, (_, at) in enumerate(top_b.iterrows()):
+                    medal = ["🥇","🥈","🥉"][rank] if rank < 3 else f"#{rank+1}"
+                    st.markdown(f"""
+                    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;
+                                border-bottom:1px solid #F3F4F6;">
+                        <span style="font-size:1.1rem;">{medal}</span>
+                        <div style="flex:1;">
+                            <div style="font-size:0.88rem;font-weight:700;color:#111827;">{at['apelido']}</div>
+                            <div style="font-size:0.72rem;color:#6B7280;">{at['posicao_nome']} · {at['status']}</div>
+                        </div>
+                        <div style="text-align:right;">
+                            <div style="font-size:0.82rem;font-weight:700;color:#1A6EFF;">PRO {at['indice_pro']:.1f}</div>
+                            <div style="font-size:0.7rem;color:#9CA3AF;">C$ {at['preco']:.1f}</div>
+                        </div>
+                    </div>""", unsafe_allow_html=True)
+
+            st.markdown('<div style="height:10px;"></div>', unsafe_allow_html=True)
 
 # ──────────────────────────────────────────────────────────────
-# TAB 2 — ROBÔ & COMPARADOR
+# TAB 2 — OTIMIZADOR PuLP + COMPARADOR
 # ──────────────────────────────────────────────────────────────
 with tab2:
-    st_robo, st_vs = st.tabs(["🤖 Robô Otimizador", "⚔️ Mano a Mano"])
+    st_opt, st_vs = st.tabs(["⚙️ Otimizador de Escalação", "⚔️ Mano a Mano"])
 
-    with st_robo:
-        col_in, col_res = st.columns([1, 3])
-        with col_in:
-            sec("PARÂMETROS")
-            orc      = st.number_input("💰 Orçamento (C$)", value=100.0)
-            esq      = st.selectbox("📐 Esquema", ["4-3-3","3-4-3","3-5-2"])
-            criterio = st.radio("🎯 Critério:", ["Índice PRO ✨","Média Geral","Pontuação Básica"])
-            so_com_jogo = st.checkbox("Somente atletas com jogo", value=True)
-            col_crit = "indice_pro"
-            if "Média Geral" in criterio:       col_crit = "media_geral"
-            elif "Pontuação Básica" in criterio: col_crit = "media_basica"
-            gerar = st.button("⚡ Gerar Time", use_container_width=True)
+    with st_opt:
+        st.markdown("### ⚙️ Otimizador de Escalação")
+        st.caption("Programação Linear (PuLP) — garante a escalação com **máximo Índice PRO global**, respeitando orçamento, esquema e restrições por clube.")
+        try:
+            import pulp
+            co1, co2 = st.columns([1, 2])
+            with co1:
+                sec("PARÂMETROS")
+                orc_opt     = st.number_input("💰 Orçamento (C$)", value=100.0, key="opt_orc")
+                esq_opt     = st.selectbox("📐 Esquema", ["4-3-3","3-4-3","3-5-2"], key="opt_esq")
+                status_opt  = st.multiselect("✅ Status aceitos:", ["Provável","Dúvida","Sem Status"],
+                                             default=["Provável"], key="opt_st")
+                max_time    = st.number_input("🏟️ Máx. por clube", min_value=1, max_value=5, value=5, key="opt_mt")
+                so_jogo_opt = st.checkbox("Somente atletas com jogo", value=True, key="opt_jogo")
+                criterio_opt = st.radio("🎯 Maximizar por:", ["Índice PRO ✨","Média Geral","Pontuação Básica"], key="opt_crit")
+                col_opt = {"Índice PRO ✨":"indice_pro","Média Geral":"media_geral","Pontuação Básica":"media_basica"}[criterio_opt]
+                btn_opt = st.button("🚀 Otimizar Escalação", use_container_width=True)
 
-        with col_res:
-            if gerar:
-                ESQUEMAS = {
-                    "4-3-3": {"Goleiro":1,"Lateral":2,"Zagueiro":2,"Meia":3,"Atacante":3,"Técnico":1},
-                    "3-5-2": {"Goleiro":1,"Lateral":0,"Zagueiro":3,"Meia":5,"Atacante":2,"Técnico":1},
-                    "3-4-3": {"Goleiro":1,"Lateral":0,"Zagueiro":3,"Meia":4,"Atacante":3,"Técnico":1},
-                }
-                meta = ESQUEMAS.get(esq, ESQUEMAS["4-3-3"])
-                pool = df_agrupado[df_agrupado["status_txt"] == "Provável"].sort_values(col_crit, ascending=False)
-                if so_com_jogo:
-                    pool = pool[pool["mando"] != "Sem Jogo"]
-                if pool.empty:
-                    pool = df_agrupado.sort_values(col_crit, ascending=False)
+            with co2:
+                if btn_opt:
+                    ESQUEMAS_OPT = {
+                        "4-3-3": {"Goleiro":1,"Lateral":2,"Zagueiro":2,"Meia":3,"Atacante":3,"Técnico":1},
+                        "3-5-2": {"Goleiro":1,"Lateral":0,"Zagueiro":3,"Meia":5,"Atacante":2,"Técnico":1},
+                        "3-4-3": {"Goleiro":1,"Lateral":0,"Zagueiro":3,"Meia":4,"Atacante":3,"Técnico":1},
+                    }
+                    meta_opt = ESQUEMAS_OPT.get(esq_opt, ESQUEMAS_OPT["4-3-3"])
+                    pool = df_agrupado[df_agrupado["status_txt"].isin(status_opt)].copy()
+                    if so_jogo_opt:
+                        pool = pool[pool["mando"] != "Sem Jogo"]
+                    pool = pool.reset_index(drop=True)
 
-                time_final = [
-                    pool[pool["posicao_nome"] == pos].head(qtd)
-                    for pos, qtd in meta.items() if qtd > 0
-                ]
-                if time_final:
-                    df_time     = pd.concat(time_final)
-                    custo_total = df_time["preco"].sum()
-                    loops       = 0
-                    while custo_total > orc and loops < 100:
-                        df_time = df_time.sort_values("preco", ascending=False)
-                        troca   = False
-                        for idx, jc in df_time.iterrows():
-                            cands = pool[
-                                (pool["posicao_nome"] == jc["posicao_nome"]) &
-                                (pool["preco"] < jc["preco"]) &
-                                (~pool["atleta_id"].isin(df_time["atleta_id"]))
-                            ]
-                            if not cands.empty:
-                                df_time     = pd.concat([df_time.drop(idx), cands.iloc[0].to_frame().T])
-                                custo_total = df_time["preco"].sum()
-                                troca = True; break
-                        if not troca: break
-                        loops += 1
-
-                    ordem = ["Goleiro","Lateral","Zagueiro","Meia","Atacante","Técnico"]
-                    df_time["posicao_nome"] = pd.Categorical(df_time["posicao_nome"], categories=ordem, ordered=True)
-                    df_time = df_time.sort_values("posicao_nome")
-
-                    if custo_total > orc:
-                        st.error("❌ Não foi possível montar um time dentro do orçamento.")
+                    if pool.empty:
+                        st.warning("Nenhum atleta disponível com os parâmetros selecionados.")
                     else:
-                        c1, c2, c3 = st.columns(3)
-                        c1.metric("Score Projetado", f"{df_time[col_crit].sum():.1f}")
-                        c2.metric("Custo Total",     f"C$ {custo_total:.2f}", f"Saldo: C$ {orc-custo_total:.2f}")
-                        c3.metric("Atletas",         f"{len(df_time)}")
-                        st.dataframe(
-                            df_time[["foto","status","posicao_nome","apelido","clube_nome",
-                                     "mando","adversario_prox","preco","indice_pro","media_geral","media_basica"]],
-                            column_config={
-                                "foto":           st.column_config.ImageColumn("Perfil"),
-                                "status":         "Status",   "posicao_nome":    "Posição",
-                                "apelido":        "Jogador",  "clube_nome":      "Clube",
-                                "mando":          "Mando",    "adversario_prox": "Adv.",
-                                "preco":          st.column_config.NumberColumn("C$",          format="%.2f"),
-                                "indice_pro":     st.column_config.NumberColumn("Índice PRO ✨",format="%.2f"),
-                                "media_geral":    st.column_config.NumberColumn("Média",       format="%.2f"),
-                                "media_basica":   st.column_config.NumberColumn("Básica",      format="%.2f"),
-                            },
-                            hide_index=True, use_container_width=True,
-                        )
+                        with st.spinner("Resolvendo o problema de otimização..."):
+                            prob  = pulp.LpProblem("cartola", pulp.LpMaximize)
+                            n     = len(pool)
+                            ids   = list(range(n))
+                            x     = pulp.LpVariable.dicts("x", ids, cat="Binary")
+                            # Objetivo
+                            prob += pulp.lpSum(pool.iloc[i][col_opt] * x[i] for i in ids)
+                            # Orçamento
+                            prob += pulp.lpSum(pool.iloc[i]["preco"] * x[i] for i in ids) <= orc_opt
+                            # Restrição por posição
+                            for pos, qtd in meta_opt.items():
+                                ip = [i for i in ids if pool.iloc[i]["posicao_nome"] == pos]
+                                prob += pulp.lpSum(x[i] for i in ip) == qtd
+                            # Restrição por clube
+                            for tm in pool["clube_nome"].unique():
+                                it = [i for i in ids if pool.iloc[i]["clube_nome"] == tm]
+                                prob += pulp.lpSum(x[i] for i in it) <= max_time
+                            prob.solve(pulp.PULP_CBC_CMD(msg=0))
+
+                        if pulp.LpStatus[prob.status] == "Optimal":
+                            esc    = [i for i in ids if pulp.value(x[i]) == 1]
+                            df_opt = pool.iloc[esc].copy()
+                            ordem  = ["Goleiro","Lateral","Zagueiro","Meia","Atacante","Técnico"]
+                            df_opt["posicao_nome"] = pd.Categorical(df_opt["posicao_nome"], categories=ordem, ordered=True)
+                            df_opt = df_opt.sort_values("posicao_nome")
+                            custo  = df_opt["preco"].sum()
+                            score  = df_opt[col_opt].sum()
+
+                            # KPIs do resultado
+                            r1, r2, r3, r4 = st.columns(4)
+                            r1.metric("✅ Score Total",    f"{score:.2f}")
+                            r2.metric("💰 Custo",          f"C$ {custo:.2f}")
+                            r3.metric("💵 Saldo",          f"C$ {orc_opt - custo:.2f}")
+                            r4.metric("👥 Atletas",        f"{len(df_opt)}")
+
+                            st.dataframe(
+                                df_opt[["foto","status","posicao_nome","apelido","clube_nome",
+                                        "mando","adversario_prox","preco","indice_pro","media_geral","media_basica"]],
+                                column_config={
+                                    "foto":           st.column_config.ImageColumn("Perfil"),
+                                    "status":         "Status",
+                                    "posicao_nome":   "Posição",
+                                    "apelido":        "Jogador",
+                                    "clube_nome":     "Clube",
+                                    "mando":          "Mando",
+                                    "adversario_prox":"Adv.",
+                                    "preco":          st.column_config.NumberColumn("C$",           format="%.2f"),
+                                    "indice_pro":     st.column_config.NumberColumn("Índice PRO ✨", format="%.2f"),
+                                    "media_geral":    st.column_config.NumberColumn("Média",        format="%.2f"),
+                                    "media_basica":   st.column_config.NumberColumn("Básica",       format="%.2f"),
+                                },
+                                hide_index=True, use_container_width=True,
+                            )
+
+                            # Gráfico de composição por posição
+                            fig_pos = px.bar(
+                                df_opt.groupby("posicao_nome")[col_opt].sum().reset_index(),
+                                x="posicao_nome", y=col_opt, color="posicao_nome",
+                                labels={"posicao_nome":"Posição", col_opt:"Score Contribuído"},
+                                color_discrete_sequence=COLORS, text_auto=".1f",
+                            )
+                            themed(fig_pos)
+                            fig_pos.update_traces(textposition="outside")
+                            st.plotly_chart(fig_pos, use_container_width=True)
+                            st.info("💡 PuLP (CBC) garante o **ótimo global** — nenhuma outra combinação dentro do orçamento gera score maior.")
+                        else:
+                            st.error("❌ Sem solução viável. Tente aumentar o orçamento, aceitar mais status ou reduzir o máximo por clube.")
+        except ImportError:
+            st.error("❌ `pulp` não instalado. Adicione ao `requirements.txt` e faça o redeploy.")
 
     with st_vs:
         sec("COMPARATIVO MANO A MANO")
@@ -1095,108 +1255,110 @@ with tab6:
             </div>""", unsafe_allow_html=True)
 
 # ──────────────────────────────────────────────────────────────
-# TAB 7 — RAIO-X DO CONFRONTO
-# ──────────────────────────────────────────────────────────────
+# TAB 7 — PROJEÇÃO + FORMA RECENTE (era tab8)
 with tab7:
-    st.markdown("### 🔬 Raio-X do Confronto")
-    st.caption("Histórico direto entre dois times + fragilidade defensiva por posição.")
-
-    times_disp = sorted(df["clube_nome"].astype(str).unique())
-    c1, c2     = st.columns(2)
-    time_a = c1.selectbox("Time A", times_disp, key="rx_a")
-    time_b = c2.selectbox("Time B", times_disp, index=1 if len(times_disp)>1 else 0, key="rx_b")
-
-    if time_a == time_b:
-        st.warning("Selecione times diferentes.")
-    else:
-        df_dir = df[
-            ((df["clube_nome"]==time_a)&(df["adversario"]==time_b)) |
-            ((df["clube_nome"]==time_b)&(df["adversario"]==time_a))
-        ]
-        col_r1, col_r2, col_r3 = st.columns(3)
-        col_r1.metric("Confrontos no histórico", len(df_dir["rodada_id"].unique()) if not df_dir.empty else 0)
-        if not df_dir.empty:
-            ma = df_dir[df_dir["clube_nome"]==time_a]["pontos"].mean()
-            mb = df_dir[df_dir["clube_nome"]==time_b]["pontos"].mean()
-            col_r2.metric(f"Média {time_a}", f"{ma:.2f}")
-            col_r3.metric(f"Média {time_b}", f"{mb:.2f}")
-
-            st.divider()
-            heat_rx = df_dir.groupby(["clube_nome","posicao_nome"])["pontos"].mean().reset_index()
-            piv_rx  = heat_rx.pivot(index="clube_nome", columns="posicao_nome", values="pontos").fillna(0)
-            fig_rx  = px.imshow(piv_rx, text_auto=".1f", color_continuous_scale="Blues", aspect="auto")
-            themed(fig_rx); st.plotly_chart(fig_rx, use_container_width=True)
-
-            st.divider()
-            st.markdown(f"**Top atletas de {time_a} contra {time_b}**")
-            top_rx = (df_dir[df_dir["clube_nome"]==time_a]
-                      .groupby("apelido")
-                      .agg(media_pts=("pontos","mean"), jogos=("rodada_id","count"))
-                      .reset_index().sort_values("media_pts", ascending=False).head(10))
-            st.dataframe(top_rx,
-                column_config={
-                    "apelido":   "Atleta",
-                    "media_pts": st.column_config.NumberColumn("Média pts", format="%.2f"),
-                    "jogos":     st.column_config.NumberColumn("Jogos",     format="%d"),
-                }, hide_index=True, use_container_width=True)
-        else:
-            st.info("Nenhum confronto direto no histórico atual.")
-
-        st.divider()
-        st.markdown(f"**Fragilidade defensiva de {time_b} por posição**")
-        df_ced = df[df["adversario"]==time_b].groupby("posicao_nome")["pontos"].mean().reset_index()
-        df_ced.columns = ["Posição","Média cedida"]
-        df_ced = df_ced.sort_values("Média cedida", ascending=False)
-        fig_ced = px.bar(df_ced, x="Posição", y="Média cedida",
-                         color="Média cedida", color_continuous_scale="Reds", text_auto=".1f")
-        themed(fig_ced); st.plotly_chart(fig_ced, use_container_width=True)
-
-# ──────────────────────────────────────────────────────────────
-# TAB 8 — PROJEÇÃO + FORMA RECENTE
-# ──────────────────────────────────────────────────────────────
-with tab8:
-    proj_tab, forma_tab = st.tabs(["🔮 Projeção por Scout","📅 Forma Recente"])
+    proj_tab, forma_tab = st.tabs(["🔮 Projeção por Posição","📅 Forma Recente"])
 
     with proj_tab:
-        st.markdown("### 🔮 Projeção de Pontuação")
-        st.caption("Estima pontuação esperada com base na média de scouts contra o adversário.")
+        st.markdown("### 🔮 Projeção de Pontuação — Todos os Atletas com Jogo")
+        st.caption("Ranking automático por posição. Só exibe atletas com jogo confirmado. Projeção = média ponderada de scouts contra o adversário.")
+
         PESOS_PROJ = {"G":8.0,"A":5.0,"FT":3.0,"FD":1.2,"FF":0.8,"FS":0.5,"PS":1.0,
                       "DE":1.0,"DS":1.5,"FC":-0.3,"PC":-1.0,"CA":-1.0,"CV":-3.0,"GS":-1.0,"I":-0.1,"SG":5.0}
 
-        atletas_c_jogo = df_agrupado[df_agrupado["mando"] != "Sem Jogo"]["apelido"].unique()
-        if len(atletas_c_jogo) == 0:
-            st.warning("Nenhum atleta com jogo confirmado para projeção.")
+        # Filtros leves
+        cf1, cf2, cf3 = st.columns([2,2,2])
+        with cf1:
+            pos_filtro = st.multiselect(
+                "Posição:", sorted(df_agrupado["posicao_nome"].unique()),
+                default=sorted(df_agrupado["posicao_nome"].unique()), key="proj_pos"
+            )
+        with cf2:
+            st_filtro = st.multiselect(
+                "Status:", ["Provável","Dúvida","Sem Status"],
+                default=["Provável","Dúvida"], key="proj_st"
+            )
+        with cf3:
+            top_n = st.slider("Top N por posição:", 3, 20, 10, key="proj_n")
+
+        atletas_com_jogo = df_agrupado[
+            (df_agrupado["mando"] != "Sem Jogo") &
+            (df_agrupado["posicao_nome"].isin(pos_filtro)) &
+            (df_agrupado["status_txt"].isin(st_filtro))
+        ].copy()
+
+        if atletas_com_jogo.empty:
+            st.warning("Nenhum atleta com jogo confirmado nos filtros selecionados.")
         else:
-            sel_proj = st.multiselect("Atletas (máx. 10):", sorted(atletas_c_jogo),
-                                      default=list(sorted(atletas_c_jogo))[:5], max_selections=10)
-            if sel_proj:
-                rows_proj = []
-                for apelido in sel_proj:
-                    row_ag = df_agrupado[df_agrupado["apelido"] == apelido].iloc[0]
-                    clube  = row_ag["clube_nome"]
-                    adv    = mapa_confrontos.get(clube, {}).get("adv", None)
-                    df_at  = df[df["apelido"] == apelido]
-                    df_vs  = df_at[df_at["adversario"] == adv] if adv else df_at
-                    if df_vs.empty: df_vs = df_at
-                    proj = sum(df_vs[s].mean()*p for s,p in PESOS_PROJ.items() if s in df_vs.columns)
-                    rows_proj.append({
-                        "Atleta": apelido, "Clube": clube, "Adv": adv or "-", "Mando": row_ag["mando"],
-                        "Proj Min": proj*0.70, "Proj Med": proj, "Proj Máx": proj*1.30,
-                    })
-                df_proj = pd.DataFrame(rows_proj).sort_values("Proj Med", ascending=False)
-                st.dataframe(df_proj,
+            # Calcula projeção para todos de uma vez
+            rows_proj = []
+            for _, row_ag in atletas_com_jogo.iterrows():
+                clube = row_ag["clube_nome"]
+                adv   = mapa_confrontos.get(clube, {}).get("adv", None)
+                df_at = df[df["atleta_id"] == row_ag["atleta_id"]]
+                df_vs = df_at[df_at["adversario"] == adv] if adv else df_at
+                if df_vs.empty:
+                    df_vs = df_at
+                proj = sum(df_vs[s].mean() * p for s, p in PESOS_PROJ.items() if s in df_vs.columns and not np.isnan(df_vs[s].mean()))
+                rows_proj.append({
+                    "atleta_id":   row_ag["atleta_id"],
+                    "Atleta":      row_ag["apelido"],
+                    "Posição":     row_ag["posicao_nome"],
+                    "Clube":       clube,
+                    "Adv":         adv or "-",
+                    "Mando":       row_ag["mando"],
+                    "Status":      row_ag["status_txt"],
+                    "C$":          row_ag["preco"],
+                    "Índice PRO":  row_ag["indice_pro"],
+                    "Proj Min":    proj * 0.70,
+                    "Proj Med":    proj,
+                    "Proj Máx":    proj * 1.30,
+                    "Média Real":  row_ag["media_geral"],
+                })
+
+            df_proj_all = pd.DataFrame(rows_proj)
+
+            # Ranking por posição
+            ordem_pos = ["Goleiro","Lateral","Zagueiro","Meia","Atacante","Técnico"]
+            for pos in ordem_pos:
+                df_p = df_proj_all[df_proj_all["Posição"] == pos].sort_values("Proj Med", ascending=False).head(top_n)
+                if df_p.empty:
+                    continue
+
+                sec(f"{pos.upper()} — TOP {len(df_p)}")
+
+                # Gráfico compacto horizontal
+                fig_p = px.bar(
+                    df_p, y="Atleta", x="Proj Med",
+                    error_x=df_p["Proj Máx"] - df_p["Proj Med"],
+                    error_x_minus=df_p["Proj Med"] - df_p["Proj Min"],
+                    color="Mando", orientation="h",
+                    text=df_p["Proj Med"].apply(lambda v: f"{v:.1f}"),
+                    color_discrete_map={"CASA":"#00A878","FORA":"#1A6EFF"},
+                    labels={"Proj Med":"Projeção (pts)"},
+                    height=max(220, len(df_p) * 38),
+                )
+                themed(fig_p)
+                fig_p.update_traces(textposition="outside")
+                fig_p.update_layout(yaxis=dict(autorange="reversed"), legend_title_text="Mando")
+                st.plotly_chart(fig_p, use_container_width=True)
+
+                # Tabela compacta
+                st.dataframe(
+                    df_p[["Atleta","Clube","Adv","Mando","Status","C$","Índice PRO","Proj Min","Proj Med","Proj Máx","Média Real"]],
                     column_config={
-                        "Proj Min": st.column_config.NumberColumn(format="%.1f"),
-                        "Proj Med": st.column_config.NumberColumn(format="%.1f"),
-                        "Proj Máx": st.column_config.NumberColumn(format="%.1f"),
-                    }, hide_index=True, use_container_width=True)
-                fig_proj = px.bar(df_proj, x="Atleta", y="Proj Med",
-                                  error_y=df_proj["Proj Máx"]-df_proj["Proj Med"],
-                                  error_y_minus=df_proj["Proj Med"]-df_proj["Proj Min"],
-                                  color="Mando", text_auto=".1f",
-                                  color_discrete_map={"CASA":"#00A878","FORA":"#1A6EFF","Sem Jogo":"#9CA3AF"})
-                themed(fig_proj); st.plotly_chart(fig_proj, use_container_width=True)
-                st.caption("Barras de erro = ±30% sobre a projeção central.")
+                        "C$":         st.column_config.NumberColumn(format="%.2f"),
+                        "Índice PRO": st.column_config.NumberColumn(format="%.2f"),
+                        "Proj Min":   st.column_config.NumberColumn(format="%.1f"),
+                        "Proj Med":   st.column_config.NumberColumn(format="%.1f"),
+                        "Proj Máx":   st.column_config.NumberColumn(format="%.1f"),
+                        "Média Real": st.column_config.NumberColumn(format="%.1f"),
+                    },
+                    hide_index=True, use_container_width=True,
+                )
+                st.markdown('<div style="height:10px;"></div>', unsafe_allow_html=True)
+
+            st.caption("Barras de erro = ±30% sobre a projeção central. Ordenação por Proj Med dentro de cada posição.")
 
     with forma_tab:
         st.markdown("### 📅 Forma Recente")
@@ -1236,9 +1398,9 @@ with tab8:
         st.plotly_chart(fig_forma, use_container_width=True)
 
 # ──────────────────────────────────────────────────────────────
-# TAB 9 — VALORIZAÇÃO (NOVA)
+# TAB 8 — VALORIZAÇÃO (era tab9)
 # ──────────────────────────────────────────────────────────────
-with tab9:
+with tab8:
     st.markdown("### 💹 Tendência de Valorização")
     st.caption("Curva de preço C$ ao longo das rodadas por atleta.")
 
@@ -1324,10 +1486,10 @@ with tab9:
             st.info("Necessário pelo menos 2 rodadas para calcular valorização.")
 
 # ──────────────────────────────────────────────────────────────
-# TAB 10 — ML & OTIMIZADOR
+# TAB 9 — ML (era tab10)
 # ──────────────────────────────────────────────────────────────
-with tab10:
-    ml_tab, opt_tab = st.tabs(["🧬 Predição ML","⚙️ Otimizador PuLP"])
+with tab9:
+    ml_tab, opt_tab = st.tabs(["🧬 Predição ML","📊 Histórico de Scouts"])
 
     with ml_tab:
         st.markdown("### 🧬 Predição de Valorização com ML")
@@ -1389,72 +1551,37 @@ with tab10:
             st.error("❌ `scikit-learn` não instalado. Adicione ao `requirements.txt` e faça o redeploy.")
 
     with opt_tab:
-        st.markdown("### ⚙️ Otimizador com Programação Linear (PuLP)")
-        st.caption("Maximiza o Índice PRO respeitando orçamento, posições e restrições do esquema.")
-        try:
-            import pulp
-            co1, co2 = st.columns([1,2])
-            with co1:
-                orc_opt    = st.number_input("Orçamento (C$)", value=100.0, key="opt_orc")
-                esq_opt    = st.selectbox("Esquema", ["4-3-3","3-4-3","3-5-2"], key="opt_esq")
-                status_opt = st.multiselect("Status aceitos:", ["Provável","Dúvida","Sem Status"],
-                                            default=["Provável"], key="opt_st")
-                max_time   = st.number_input("Máx. por time", min_value=1, max_value=5, value=5, key="opt_mt")
-                so_jogo_opt = st.checkbox("Somente com jogo", value=True, key="opt_jogo")
-                btn_opt    = st.button("🚀 Otimizar", use_container_width=True)
-            with co2:
-                if btn_opt:
-                    ESQUEMAS_OPT = {
-                        "4-3-3": {"Goleiro":1,"Lateral":2,"Zagueiro":2,"Meia":3,"Atacante":3,"Técnico":1},
-                        "3-5-2": {"Goleiro":1,"Lateral":0,"Zagueiro":3,"Meia":5,"Atacante":2,"Técnico":1},
-                        "3-4-3": {"Goleiro":1,"Lateral":0,"Zagueiro":3,"Meia":4,"Atacante":3,"Técnico":1},
-                    }
-                    meta_opt = ESQUEMAS_OPT.get(esq_opt, ESQUEMAS_OPT["4-3-3"])
-                    pool = df_agrupado[df_agrupado["status_txt"].isin(status_opt)].copy()
-                    if so_jogo_opt:
-                        pool = pool[pool["mando"] != "Sem Jogo"]
-                    pool = pool.reset_index(drop=True)
+        st.markdown("### 📊 Histórico de Scouts por Atleta")
+        st.caption("Evolução rodada a rodada de scouts individuais. Selecione um atleta para inspecionar.")
+        atletas_todos = sorted(df_agrupado["apelido"].unique())
+        sel_scout_atl = st.selectbox("Atleta:", atletas_todos, key="scout_hist_atl")
+        scouts_disp   = [s for s in SCOUTS if s in df.columns]
+        sel_scouts    = st.multiselect("Scouts:", scouts_disp, default=["G","A","DS","FC","CA"], key="scout_sel")
 
-                    if pool.empty:
-                        st.warning("Nenhum atleta disponível com os status selecionados.")
-                    else:
-                        prob   = pulp.LpProblem("cartola", pulp.LpMaximize)
-                        n      = len(pool)
-                        ids    = list(range(n))
-                        x      = pulp.LpVariable.dicts("x", ids, cat="Binary")
-                        prob  += pulp.lpSum(pool.iloc[i]["indice_pro"]*x[i] for i in ids)
-                        prob  += pulp.lpSum(pool.iloc[i]["preco"]*x[i]      for i in ids) <= orc_opt
-                        for pos, qtd in meta_opt.items():
-                            ip = [i for i in ids if pool.iloc[i]["posicao_nome"] == pos]
-                            prob += pulp.lpSum(x[i] for i in ip) == qtd
-                        for tm in pool["clube_nome"].unique():
-                            it = [i for i in ids if pool.iloc[i]["clube_nome"] == tm]
-                            prob += pulp.lpSum(x[i] for i in it) <= max_time
-                        prob.solve(pulp.PULP_CBC_CMD(msg=0))
+        if sel_scout_atl and sel_scouts:
+            df_hist_at = df[df["apelido"] == sel_scout_atl].sort_values("rodada_id")[["rodada_id"] + sel_scouts + ["pontos","adversario","mando"]]
+            if df_hist_at.empty:
+                st.warning("Sem histórico para este atleta.")
+            else:
+                # Linha de pontos + barras de scouts
+                fig_sc = go.Figure()
+                for s in sel_scouts:
+                    fig_sc.add_trace(go.Bar(name=s, x=df_hist_at["rodada_id"], y=df_hist_at[s], opacity=0.7))
+                fig_sc.add_trace(go.Scatter(
+                    name="Pontos", x=df_hist_at["rodada_id"], y=df_hist_at["pontos"],
+                    mode="lines+markers", line=dict(color="#E09B00", width=2),
+                    yaxis="y2",
+                ))
+                fig_sc.update_layout(
+                    **THEME,
+                    barmode="stack",
+                    yaxis=dict(title="Scouts"),
+                    yaxis2=dict(title="Pontos", overlaying="y", side="right", showgrid=False),
+                    xaxis=dict(title="Rodada"),
+                )
+                st.plotly_chart(fig_sc, use_container_width=True)
 
-                        if pulp.LpStatus[prob.status] == "Optimal":
-                            esc    = [i for i in ids if pulp.value(x[i]) == 1]
-                            df_opt = pool.iloc[esc].copy()
-                            ordem  = ["Goleiro","Lateral","Zagueiro","Meia","Atacante","Técnico"]
-                            df_opt["posicao_nome"] = pd.Categorical(df_opt["posicao_nome"], categories=ordem, ordered=True)
-                            df_opt = df_opt.sort_values("posicao_nome")
-                            custo  = df_opt["preco"].sum()
-                            score  = df_opt["indice_pro"].sum()
-                            st.success(f"✅ Escalação ótima! Custo: C$ {custo:.2f} | Score PRO: {score:.2f}")
-                            st.dataframe(
-                                df_opt[["foto","status","posicao_nome","apelido","clube_nome",
-                                        "mando","adversario_prox","preco","indice_pro","media_geral"]],
-                                column_config={
-                                    "foto":           st.column_config.ImageColumn("Perfil"),
-                                    "status":         "Status",   "posicao_nome":    "Posição",
-                                    "apelido":        "Jogador",  "clube_nome":      "Clube",
-                                    "mando":          "Mando",    "adversario_prox": "Adv.",
-                                    "preco":          st.column_config.NumberColumn("C$",           format="%.2f"),
-                                    "indice_pro":     st.column_config.NumberColumn("Índice PRO ✨", format="%.2f"),
-                                    "media_geral":    st.column_config.NumberColumn("Média",        format="%.2f"),
-                                }, hide_index=True, use_container_width=True)
-                            st.info("💡 PuLP avalia todas as combinações e garante o ótimo global.")
-                        else:
-                            st.error("❌ Sem solução viável. Aumente o orçamento ou aceite mais status.")
-        except ImportError:
-            st.error("❌ `pulp` não instalado. Adicione ao `requirements.txt` e faça o redeploy.")
+                st.dataframe(
+                    df_hist_at.rename(columns={"rodada_id":"Rodada","pontos":"Pts","adversario":"Adv","mando":"Mando"}),
+                    hide_index=True, use_container_width=True,
+                )
