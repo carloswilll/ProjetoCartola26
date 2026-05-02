@@ -269,17 +269,33 @@ def conectar_supabase():
     return None
 
 def _carregar_historico_supabase(cliente, ultima_rodada_banco: int) -> pd.DataFrame:
-    """Carrega histórico completo do Supabase."""
+    """
+    Carrega histórico completo do Supabase com paginação automática.
+    O free tier retorna no máximo 1000 linhas por request — sem paginação
+    o app pensa que rodadas já salvas estão faltando e tenta reinserí-las (erro 409).
+    """
     try:
-        res = (
-            cliente.table("historico_cartola")
-            .select("*")
-            .order("rodada_id")
-            .execute()
-        )
-        if res.data:
-            df = pd.DataFrame(res.data)
-            log.info("Supabase: %d registros carregados (até rodada %d).",
+        todos = []
+        tamanho_pagina = 1000
+        offset = 0
+        while True:
+            res = (
+                cliente.table("historico_cartola")
+                .select("*")
+                .order("rodada_id")
+                .range(offset, offset + tamanho_pagina - 1)
+                .execute()
+            )
+            if not res.data:
+                break
+            todos.extend(res.data)
+            log.info("Supabase: página offset=%d → %d registros.", offset, len(res.data))
+            if len(res.data) < tamanho_pagina:
+                break  # última página
+            offset += tamanho_pagina
+        if todos:
+            df = pd.DataFrame(todos)
+            log.info("Supabase: %d registros totais carregados (até rodada %d).",
                      len(df), df["rodada_id"].max())
             return df
     except Exception as e:
@@ -933,7 +949,7 @@ with tab1:
                             "C$":     st.column_config.NumberColumn(format="%.2f"),
                             **{s: st.column_config.NumberColumn(format="%d") for s in cols_existem},
                         },
-                        hide_index=True, use_container_width=True,
+                        hide_index=True, width="stretch",
                     )
 
             col_a, col_sep, col_b = st.columns([5, 1, 5])
@@ -970,7 +986,7 @@ with tab2:
                 so_jogo_opt = st.checkbox("Somente atletas com jogo", value=True, key="opt_jogo")
                 criterio_opt = st.radio("🎯 Maximizar por:", ["Índice PRO ✨","Média Geral","Pontuação Básica"], key="opt_crit")
                 col_opt = {"Índice PRO ✨":"indice_pro","Média Geral":"media_geral","Pontuação Básica":"media_basica"}[criterio_opt]
-                btn_opt = st.button("🚀 Otimizar Escalação", use_container_width=True)
+                btn_opt = st.button("🚀 Otimizar Escalação", width="stretch")
 
             with co2:
                 if btn_opt:
@@ -1039,7 +1055,7 @@ with tab2:
                                     "media_geral":    st.column_config.NumberColumn("Média",        format="%.2f"),
                                     "media_basica":   st.column_config.NumberColumn("Básica",       format="%.2f"),
                                 },
-                                hide_index=True, use_container_width=True,
+                                hide_index=True, width="stretch",
                             )
 
                             # Gráfico de composição por posição
@@ -1051,7 +1067,7 @@ with tab2:
                             )
                             themed(fig_pos)
                             fig_pos.update_traces(textposition="outside")
-                            st.plotly_chart(fig_pos, use_container_width=True)
+                            st.plotly_chart(fig_pos, width="stretch")
                             st.info("💡 PuLP (CBC) garante o **ótimo global** — nenhuma outra combinação dentro do orçamento gera score maior.")
                         else:
                             st.error("❌ Sem solução viável. Tente aumentar o orçamento, aceitar mais status ou reduzir o máximo por clube.")
@@ -1081,7 +1097,7 @@ with tab2:
                            radialaxis=dict(visible=True, gridcolor="#E4E6EB"),
                            angularaxis=dict(gridcolor="#E4E6EB")),
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
             # Tabela comparativa detalhada
             st.divider()
@@ -1095,7 +1111,7 @@ with tab2:
             comp_df["Vantagem"] = comp_df.apply(
                 lambda r: f"✅ {p1}" if r[p1] > r[p2] else (f"✅ {p2}" if r[p2] > r[p1] else "—"), axis=1
             )
-            st.dataframe(comp_df, hide_index=True, use_container_width=True)
+            st.dataframe(comp_df, hide_index=True, width="stretch")
 
 # ──────────────────────────────────────────────────────────────
 # TAB 3 — TÁTICA
@@ -1108,14 +1124,14 @@ with tab3:
         if not heat.empty:
             piv = heat.pivot(index="adversario", columns="posicao_nome", values="pontos").fillna(0)
             fig = px.imshow(piv, text_auto=".1f", color_continuous_scale="Reds", aspect="auto")
-            themed(fig); st.plotly_chart(fig, use_container_width=True)
+            themed(fig); st.plotly_chart(fig, width="stretch")
     with hm2:
         sec("PODER OFENSIVO — PONTOS FEITOS POR POSIÇÃO")
         heat2 = df.groupby(["clube_nome","posicao_nome"])["pontos"].mean().reset_index()
         if not heat2.empty:
             piv2 = heat2.pivot(index="clube_nome", columns="posicao_nome", values="pontos").fillna(0)
             fig2 = px.imshow(piv2, text_auto=".1f", color_continuous_scale="Greens", aspect="auto")
-            themed(fig2); st.plotly_chart(fig2, use_container_width=True)
+            themed(fig2); st.plotly_chart(fig2, width="stretch")
     with hm3:
         sec("DESEMPENHO: CASA × FORA")
         stats_mando = df.groupby(["clube_nome","mando"])["pontos"].mean().reset_index()
@@ -1123,7 +1139,7 @@ with tab3:
                          labels={"pontos":"Média","clube_nome":"Time"},
                          color_discrete_map={"CASA":"#00A878","FORA":"#1A6EFF"})
         themed(fig_pts); fig_pts.update_layout(xaxis_tickangle=-45)
-        st.plotly_chart(fig_pts, use_container_width=True)
+        st.plotly_chart(fig_pts, width="stretch")
 
 # ──────────────────────────────────────────────────────────────
 # TAB 4 — MERCADO
@@ -1171,7 +1187,7 @@ with tab4:
             "media_geral":       st.column_config.NumberColumn("Média",       format="%.2f"),
             "media_basica":      st.column_config.ProgressColumn("Básica",    format="%.2f",min_value=-5,max_value=15),
         },
-        use_container_width=True, hide_index=True, height=560,
+        width="stretch", hide_index=True, height=560,
     )
     st.divider()
     sec("PREÇO × ÍNDICE PRO")
@@ -1185,7 +1201,7 @@ with tab4:
         )
         themed(fig_sc2)
         fig_sc2.update_traces(marker=dict(size=8, opacity=0.8, line=dict(width=0.5, color="#E4E6EB")))
-        st.plotly_chart(fig_sc2, use_container_width=True)
+        st.plotly_chart(fig_sc2, width="stretch")
 
 # ──────────────────────────────────────────────────────────────
 # TAB 5 — DESTAQUES
@@ -1223,7 +1239,7 @@ with tab5:
                          color="posicao_nome", points="outliers",
                          labels={"posicao_nome":"Posição","media_geral":"Média de Pontos"},
                          color_discrete_sequence=COLORS)
-        themed(fig_box); st.plotly_chart(fig_box, use_container_width=True)
+        themed(fig_box); st.plotly_chart(fig_box, width="stretch")
 
 # ──────────────────────────────────────────────────────────────
 # TAB 6 — CAPITÃO IDEAL
@@ -1373,7 +1389,7 @@ with tab7:
                     ),
                     "Proj Máx":   st.column_config.NumberColumn(format="%.1f"),
                 },
-                hide_index=True, use_container_width=True, height=520,
+                hide_index=True, width="stretch", height=520,
             )
 
             # Gráfico dispersão Projeção × C$ (colorido por posição)
@@ -1391,7 +1407,7 @@ with tab7:
                 )
                 themed(fig_pv)
                 fig_pv.update_traces(marker=dict(size=9, opacity=0.85, line=dict(width=0.5, color="#E4E6EB")))
-                st.plotly_chart(fig_pv, use_container_width=True)
+                st.plotly_chart(fig_pv, width="stretch")
             st.caption("Proj Min / Proj Máx = ±30% sobre a projeção central.")
 
     with forma_tab:
@@ -1429,7 +1445,7 @@ with tab7:
         fig_forma.add_trace(go.Bar(name=f"Últ. {n_rec} rod.", x=df_top20["apelido"],
                                    y=df_top20["media_rec"], marker_color="#00A878"))
         fig_forma.update_layout(**THEME, barmode="group", xaxis_tickangle=-45)
-        st.plotly_chart(fig_forma, use_container_width=True)
+        st.plotly_chart(fig_forma, width="stretch")
 
 # ──────────────────────────────────────────────────────────────
 # TAB 8 — VALORIZAÇÃO (era tab9)
@@ -1459,7 +1475,7 @@ with tab8:
             )
             themed(fig_curva)
             fig_curva.update_traces(line=dict(width=2))
-            st.plotly_chart(fig_curva, use_container_width=True)
+            st.plotly_chart(fig_curva, width="stretch")
         else:
             st.info("Selecione ao menos um atleta.")
 
@@ -1485,7 +1501,7 @@ with tab8:
             )
             themed(fig_val); fig_val.update_layout(xaxis_tickangle=-45)
             fig_val.update_traces(textposition="outside")
-            st.plotly_chart(fig_val, use_container_width=True)
+            st.plotly_chart(fig_val, width="stretch")
             st.dataframe(
                 top_val[["apelido","clube_nome","posicao_nome","preco_ini","preco_fim","delta_total","delta_pct","jogos"]],
                 column_config={
@@ -1498,7 +1514,7 @@ with tab8:
                     "delta_pct":   st.column_config.NumberColumn("Δ %",       format="%+.1f%%"),
                     "jogos":       st.column_config.NumberColumn("Jogos",     format="%d"),
                 },
-                hide_index=True, use_container_width=True,
+                hide_index=True, width="stretch",
             )
         else:
             st.info("Necessário pelo menos 2 rodadas para calcular valorização.")
@@ -1515,7 +1531,7 @@ with tab8:
             )
             themed(fig_desval); fig_desval.update_layout(xaxis_tickangle=-45)
             fig_desval.update_traces(textposition="outside")
-            st.plotly_chart(fig_desval, use_container_width=True)
+            st.plotly_chart(fig_desval, width="stretch")
         else:
             st.info("Necessário pelo menos 2 rodadas para calcular valorização.")
 
@@ -1573,13 +1589,13 @@ with tab9:
                             "preco":            st.column_config.NumberColumn("C$ Atual",   format="%.2f"),
                             "delta_pred":       st.column_config.NumberColumn("Δ C$ Prev.", format="%+.2f"),
                             "delta_preco_real": st.column_config.NumberColumn("Δ C$ Real",  format="%+.2f"),
-                        }, hide_index=True, use_container_width=True)
+                        }, hide_index=True, width="stretch")
                 with col_i:
                     st.markdown("#### Fatores mais relevantes")
                     fig_imp = px.bar(df_coef, x="Importância", y="Feature", orientation="h",
                                      color="Importância", color_continuous_scale="Greens")
                     themed(fig_imp); fig_imp.update_layout(showlegend=False, yaxis_title="")
-                    st.plotly_chart(fig_imp, use_container_width=True)
+                    st.plotly_chart(fig_imp, width="stretch")
                 st.info("⚠️ Estimativa baseada em padrões históricos. Use como sinal complementar.")
         except ImportError:
             st.error("❌ `scikit-learn` não instalado. Adicione ao `requirements.txt` e faça o redeploy.")
@@ -1606,16 +1622,17 @@ with tab9:
                     mode="lines+markers", line=dict(color="#E09B00", width=2),
                     yaxis="y2",
                 ))
+                _theme_sc = {k: v for k, v in THEME.items() if k not in ("xaxis", "yaxis")}
                 fig_sc.update_layout(
-                    **THEME,
+                    **_theme_sc,
                     barmode="stack",
-                    yaxis=dict(title="Scouts"),
-                    yaxis2=dict(title="Pontos", overlaying="y", side="right", showgrid=False),
-                    xaxis=dict(title="Rodada"),
+                    xaxis=dict(title="Rodada", gridcolor="#F3F4F6", linecolor="#E4E6EB", tickfont=dict(color="#6B7280")),
+                    yaxis=dict(title="Scouts", gridcolor="#F3F4F6", linecolor="#E4E6EB", tickfont=dict(color="#6B7280")),
+                    yaxis2=dict(title="Pontos", overlaying="y", side="right", showgrid=False, tickfont=dict(color="#E09B00")),
                 )
-                st.plotly_chart(fig_sc, use_container_width=True)
+                st.plotly_chart(fig_sc, width="stretch")
 
                 st.dataframe(
                     df_hist_at.rename(columns={"rodada_id":"Rodada","pontos":"Pts","adversario":"Adv","mando":"Mando"}),
-                    hide_index=True, use_container_width=True,
+                    hide_index=True, width="stretch",
                 )
