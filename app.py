@@ -730,14 +730,24 @@ df_agrupado["custo_beneficio"] = np.where(
 )
 
 # ── Tendência de preço ────────────────────────────────────────
-# Calcula delta de preço entre a penúltima e a última rodada disponível
+# Usa apenas preços > 0 para evitar distorção com dados ausentes da API
 rodadas_ord = sorted(df["rodada_id"].unique())
-if len(rodadas_ord) >= 2:
-    df_ult  = df[df["rodada_id"] == rodadas_ord[-1]][["atleta_id", "preco"]].rename(columns={"preco": "preco_ult"})
-    df_pen  = df[df["rodada_id"] == rodadas_ord[-2]][["atleta_id", "preco"]].rename(columns={"preco": "preco_pen"})
-    df_delta = df_ult.merge(df_pen, on="atleta_id", how="left")
+df_preco_valido = df[df["preco"] > 0][["atleta_id","rodada_id","preco"]].copy()
+
+if len(rodadas_ord) >= 2 and not df_preco_valido.empty:
+    # Último preço válido por atleta
+    df_preco_sorted = df_preco_valido.sort_values(["atleta_id","rodada_id"])
+    df_preco_last   = df_preco_sorted.groupby("atleta_id").last().reset_index()[["atleta_id","preco"]].rename(columns={"preco":"preco_ult"})
+    # Penúltimo preço válido por atleta
+    def _penultimo(g):
+        g2 = g.sort_values("rodada_id")
+        return g2.iloc[-2]["preco"] if len(g2) >= 2 else g2.iloc[-1]["preco"]
+    df_preco_pen = df_preco_sorted.groupby("atleta_id").apply(_penultimo).reset_index()
+    df_preco_pen.columns = ["atleta_id","preco_pen"]
+
+    df_delta = df_preco_last.merge(df_preco_pen, on="atleta_id", how="left")
     df_delta["delta_preco_real"] = df_delta["preco_ult"] - df_delta["preco_pen"].fillna(df_delta["preco_ult"])
-    df_agrupado = df_agrupado.merge(df_delta[["atleta_id", "delta_preco_real"]], on="atleta_id", how="left")
+    df_agrupado = df_agrupado.merge(df_delta[["atleta_id","delta_preco_real"]], on="atleta_id", how="left")
     df_agrupado["delta_preco_real"] = df_agrupado["delta_preco_real"].fillna(0.0)
 else:
     df_agrupado["delta_preco_real"] = 0.0
@@ -915,24 +925,38 @@ with tab1:
                 """Renderiza cards + tabela comparativa de scouts dos indicados."""
                 for rank, (_, at) in enumerate(top_df.iterrows()):
                     medal = ["🥇","🥈","🥉"][rank] if rank < 3 else f"#{rank+1}"
-                    # Média específica vs adversário
-                    hist_vs = df[(df["atleta_id"] == at["atleta_id"]) & (df["adversario"] == adv_clube)]
-                    media_vs = hist_vs["pontos"].mean() if not hist_vs.empty else None
-                    media_vs_txt = f"<span style='color:#E09B00;font-size:0.7rem;'>⚡ {media_vs:.1f} pts vs {adv_clube}</span>" if media_vs else ""
-                    st.markdown(f"""
-                    <div style="display:flex;align-items:center;gap:10px;padding:10px 0;
-                                border-bottom:1px solid #F3F4F6;">
-                        <span style="font-size:1.1rem;min-width:28px;">{medal}</span>
-                        <div style="flex:1;">
-                            <div style="font-size:0.9rem;font-weight:700;color:#111827;">{at['apelido']}</div>
-                            <div style="font-size:0.72rem;color:#6B7280;">{at['posicao_nome']} · {at['status']}</div>
-                            {media_vs_txt}
-                        </div>
-                        <div style="text-align:right;">
-                            <div style="font-size:0.85rem;font-weight:700;color:{cor_pro};">PRO {at['indice_pro']:.1f}</div>
-                            <div style="font-size:0.72rem;color:#6B7280;">Média {at['media_geral']:.1f} · C$ {at['preco']:.1f}</div>
-                        </div>
-                    </div>""", unsafe_allow_html=True)
+                    # Média específica vs adversário — calculada fora da f-string
+                    hist_vs  = df[(df["atleta_id"] == at["atleta_id"]) & (df["adversario"] == adv_clube)]
+                    media_vs = float(hist_vs["pontos"].mean()) if not hist_vs.empty else None
+                    if media_vs and not np.isnan(media_vs):
+                        vs_html = (
+                            f'<div style="font-size:0.7rem;color:#E09B00;margin-top:2px;">'
+                            f'⚡ {media_vs:.1f} pts vs {adv_clube}</div>'
+                        )
+                    else:
+                        vs_html = ""
+                    apelido_safe  = str(at["apelido"])
+                    posicao_safe  = str(at["posicao_nome"])
+                    status_safe   = str(at["status"])
+                    indice_fmt    = f"{float(at['indice_pro']):.1f}"
+                    media_fmt     = f"{float(at['media_geral']):.1f}"
+                    preco_fmt     = f"{float(at['preco']):.1f}"
+                    card_html = (
+                        f'<div style="display:flex;align-items:flex-start;gap:10px;'
+                        f'padding:10px 0;border-bottom:1px solid #F3F4F6;">'
+                        f'<span style="font-size:1.1rem;min-width:28px;">{medal}</span>'
+                        f'<div style="flex:1;">'
+                        f'<div style="font-size:0.9rem;font-weight:700;color:#111827;">{apelido_safe}</div>'
+                        f'<div style="font-size:0.72rem;color:#6B7280;">{posicao_safe} · {status_safe}</div>'
+                        f'{vs_html}'
+                        f'</div>'
+                        f'<div style="text-align:right;">'
+                        f'<div style="font-size:0.85rem;font-weight:700;color:{cor_pro};">PRO {indice_fmt}</div>'
+                        f'<div style="font-size:0.72rem;color:#6B7280;">Média {media_fmt} · C$ {preco_fmt}</div>'
+                        f'</div>'
+                        f'</div>'
+                    )
+                    st.markdown(card_html, unsafe_allow_html=True)
 
                 # Tabela comparativa de scouts dos indicados
                 if not top_df.empty:
@@ -1203,6 +1227,101 @@ with tab4:
         fig_sc2.update_traces(marker=dict(size=8, opacity=0.8, line=dict(width=0.5, color="#E4E6EB")))
         st.plotly_chart(fig_sc2, width="stretch")
 
+    # ── Drill-down: clique no nome para ver ficha completa ─────
+    st.divider()
+    sec("🔍 FICHA DO ATLETA — DRILL-DOWN")
+    st.caption("Selecione um atleta da tabela acima para ver sua ficha completa com histórico de scouts.")
+
+    atletas_merc = sorted(df_merc["apelido"].unique()) if not df_merc.empty else []
+    if atletas_merc:
+        sel_drill = st.selectbox(
+            "Selecione o atleta:", atletas_merc,
+            index=0, key="drill_mercado",
+            placeholder="Escolha um atleta..."
+        )
+        if sel_drill:
+            row_at = df_agrupado[df_agrupado["apelido"] == sel_drill]
+            if not row_at.empty:
+                row_at = row_at.iloc[0]
+                # Header da ficha
+                fc1, fc2, fc3 = st.columns([1,3,2])
+                with fc1:
+                    if row_at["foto"] and str(row_at["foto"]).startswith("http"):
+                        st.image(str(row_at["foto"]), width=80)
+                with fc2:
+                    st.markdown(
+                        f'<div style="font-size:1.1rem;font-weight:800;color:#111827;">{sel_drill}</div>'
+                        f'<div style="font-size:0.82rem;color:#6B7280;">'
+                        f'{row_at["posicao_nome"]} · {row_at["clube_nome"]} · {row_at["status"]}</div>',
+                        unsafe_allow_html=True
+                    )
+                with fc3:
+                    st.metric("Índice PRO", f"{row_at['indice_pro']:.2f}")
+
+                # KPIs rápidos
+                dk1, dk2, dk3, dk4, dk5 = st.columns(5)
+                dk1.metric("Média Geral",  f"{row_at['media_geral']:.1f} pts")
+                dk2.metric("C$ Atual",     f"C$ {row_at['preco']:.2f}")
+                dk3.metric("Δ C$ Últ.",    f"{row_at['delta_preco_real']:+.2f}")
+                dk4.metric("C/B",          f"{row_at['custo_beneficio']:.2f}")
+                dk5.metric("Jogos",        f"{int(row_at['jogos_disputados'])}")
+
+                # Scouts totais na temporada
+                scouts_top = ["G","A","FT","DS","FS","FC","CA","DE","SG","CV"]
+                sc_vals = {s: int(row_at[s]) for s in scouts_top if s in row_at.index and row_at[s] > 0}
+                if sc_vals:
+                    sc_df = pd.DataFrame(list(sc_vals.items()), columns=["Scout","Total"])
+                    fig_sc_bar = px.bar(sc_df, x="Scout", y="Total", text="Total",
+                                        color="Total", color_continuous_scale="Greens",
+                                        height=200)
+                    _tb = {k: v for k, v in THEME.items() if k != "yaxis"}
+                    fig_sc_bar.update_layout(**_tb, showlegend=False,
+                                            yaxis=dict(title="", gridcolor="#F3F4F6"),
+                                            margin=dict(l=0,r=0,t=20,b=0))
+                    fig_sc_bar.update_traces(textposition="outside")
+                    st.plotly_chart(fig_sc_bar, width="stretch")
+
+                # Histórico rodada a rodada
+                with st.expander("📅 Ver histórico rodada a rodada", expanded=False):
+                    atleta_id_sel = int(row_at["atleta_id"])
+                    scouts_hist   = [s for s in SCOUTS if s in df.columns]
+                    sel_sc_drill  = st.multiselect(
+                        "Scouts:", scouts_hist,
+                        default=["G","A","DS","FC"],
+                        key="sc_drill"
+                    )
+                    df_drill = df[df["atleta_id"] == atleta_id_sel].sort_values("rodada_id")
+                    if not df_drill.empty and sel_sc_drill:
+                        fig_drill = go.Figure()
+                        for s in sel_sc_drill:
+                            if s in df_drill.columns:
+                                fig_drill.add_trace(go.Bar(
+                                    name=s, x=df_drill["rodada_id"], y=df_drill[s], opacity=0.75
+                                ))
+                        fig_drill.add_trace(go.Scatter(
+                            name="Pontos", x=df_drill["rodada_id"], y=df_drill["pontos"],
+                            mode="lines+markers", line=dict(color="#E09B00", width=2.5),
+                            marker=dict(size=6), yaxis="y2",
+                        ))
+                        _td = {k: v for k, v in THEME.items() if k not in ("xaxis","yaxis")}
+                        fig_drill.update_layout(
+                            **_td, barmode="stack", height=300,
+                            xaxis=dict(title="Rodada", tickmode="linear", dtick=1,
+                                       gridcolor="#F3F4F6", linecolor="#E4E6EB",
+                                       tickfont=dict(color="#6B7280")),
+                            yaxis=dict(title="Scouts", gridcolor="#F3F4F6",
+                                       linecolor="#E4E6EB", tickfont=dict(color="#6B7280")),
+                            yaxis2=dict(title="Pts", overlaying="y", side="right",
+                                        showgrid=False, tickfont=dict(color="#E09B00")),
+                        )
+                        st.plotly_chart(fig_drill, width="stretch")
+                        tabela_drill = df_drill[["rodada_id","pontos","adversario","mando","preco"] + sel_sc_drill].copy()
+                        tabela_drill = tabela_drill.rename(columns={
+                            "rodada_id":"Rodada","pontos":"Pts",
+                            "adversario":"Adversário","mando":"Mando","preco":"C$"
+                        })
+                        st.dataframe(tabela_drill, hide_index=True, width="stretch")
+
 # ──────────────────────────────────────────────────────────────
 # TAB 5 — DESTAQUES
 # ──────────────────────────────────────────────────────────────
@@ -1448,92 +1567,184 @@ with tab7:
         st.plotly_chart(fig_forma, width="stretch")
 
 # ──────────────────────────────────────────────────────────────
-# TAB 8 — VALORIZAÇÃO (era tab9)
+# TAB 8 — VALORIZAÇÃO
 # ──────────────────────────────────────────────────────────────
 with tab8:
     st.markdown("### 💹 Tendência de Valorização")
-    st.caption("Curva de preço C$ ao longo das rodadas por atleta.")
+    st.caption("Análise de valorização/desvalorização de C$ ao longo da temporada.")
+
+    # ── Base de cálculo robusta: só preços > 0 ─────────────────
+    df_pv = df[df["preco"] > 0][["atleta_id","rodada_id","apelido","clube_nome","posicao_nome","preco"]].copy()
+
+    if len(rodadas_ord) >= 2 and not df_pv.empty:
+        # Primeiro e último preço válido por atleta
+        df_pv_sorted = df_pv.sort_values(["atleta_id","rodada_id"])
+        df_ini = df_pv_sorted.groupby("atleta_id").first().reset_index()[["atleta_id","preco","rodada_id"]].rename(columns={"preco":"preco_ini","rodada_id":"rodada_ini"})
+        df_fim = df_pv_sorted.groupby("atleta_id").last().reset_index()[["atleta_id","preco","rodada_id","apelido","clube_nome","posicao_nome"]].rename(columns={"preco":"preco_fim","rodada_id":"rodada_fim"})
+        jogos_count = df.groupby("atleta_id")["rodada_id"].count().reset_index().rename(columns={"rodada_id":"jogos"})
+
+        df_val = df_fim.merge(df_ini, on="atleta_id").merge(jogos_count, on="atleta_id")
+        df_val["delta_total"] = df_val["preco_fim"] - df_val["preco_ini"]
+        df_val["delta_pct"]   = ((df_val["delta_total"] / df_val["preco_ini"]) * 100).replace([np.inf,-np.inf], 0).fillna(0)
+        df_val = df_val[df_val["jogos"] >= 2]  # só atletas com ao menos 2 rodadas
+    else:
+        df_val = pd.DataFrame()
 
     val_tab1, val_tab2, val_tab3 = st.tabs([
-        "📈 Curva de Preço", "🏆 Mais Valorizados", "📉 Mais Desvalorizados"
+        "🔥 Ranking de Valorização", "📈 Curva de Preço", "🗺️ Mapa de Calor"
     ])
 
     with val_tab1:
-        sec("EVOLUÇÃO DE PREÇO — HISTÓRICO POR RODADA")
-        atletas_disp = sorted(df_agrupado.sort_values("indice_pro", ascending=False)["apelido"].unique())
-        sel_val = st.multiselect(
-            "Selecione atletas:", atletas_disp,
-            default=list(atletas_disp[:5]), max_selections=8, key="val_sel"
-        )
-        if sel_val:
-            df_curva = df[df["apelido"].isin(sel_val)][["rodada_id","apelido","preco"]].copy()
+        if df_val.empty:
+            st.info("Necessário pelo menos 2 rodadas com preços válidos.")
+        else:
+            # ── Filtros ──────────────────────────────────────────
+            vf1, vf2, vf3 = st.columns([2,2,2])
+            with vf1:
+                pos_v = st.multiselect("Posição:", sorted(df_val["posicao_nome"].unique()),
+                                       default=sorted(df_val["posicao_nome"].unique()), key="vf_pos")
+            with vf2:
+                dir_v = st.radio("Direção:", ["🔺 Valorizados","🔻 Desvalorizados"], horizontal=True, key="vf_dir")
+            with vf3:
+                n_v = st.slider("Top N:", 5, 30, 20, key="vf_n")
+
+            df_vf = df_val[df_val["posicao_nome"].isin(pos_v)].copy()
+            ascend = dir_v == "🔻 Desvalorizados"
+            df_vf  = df_vf.sort_values("delta_total", ascending=ascend).head(n_v)
+
+            # KPIs rápidos
+            kv1, kv2, kv3, kv4 = st.columns(4)
+            kv1.metric("Maior valorização", f"+C$ {df_val['delta_total'].max():.2f}")
+            kv2.metric("Maior desvalorização", f"C$ {df_val['delta_total'].min():.2f}")
+            kv3.metric("Média da temporada", f"C$ {df_val['delta_total'].mean():+.2f}")
+            kv4.metric("Atletas estáveis (Δ=0)", int((df_val["delta_total"] == 0).sum()))
+
+            # Gráfico de barras horizontal — mais legível que vertical para nomes
+            cor_bars = "#00A878" if not ascend else "#E03E3E"
+            fig_rank = px.bar(
+                df_vf.sort_values("delta_total", ascending=not ascend),
+                y="apelido", x="delta_total",
+                color="posicao_nome", orientation="h",
+                text=df_vf.sort_values("delta_total", ascending=not ascend)["delta_total"].apply(
+                    lambda v: f"{v:+.2f}"
+                ),
+                hover_data={"clube_nome":True,"preco_ini":":.2f","preco_fim":":.2f","delta_pct":":.1f","jogos":True},
+                labels={"apelido":"Atleta","delta_total":"Δ C$","posicao_nome":"Posição"},
+                color_discrete_sequence=COLORS,
+                height=max(280, n_v * 28),
+            )
+            themed(fig_rank)
+            fig_rank.update_traces(textposition="outside")
+            fig_rank.update_layout(yaxis=dict(autorange="reversed"))
+            st.plotly_chart(fig_rank, width="stretch")
+
+            # Tabela completa com formato rico
+            st.dataframe(
+                df_vf[["apelido","clube_nome","posicao_nome","preco_ini","preco_fim","delta_total","delta_pct","jogos"]].rename(
+                    columns={"apelido":"Atleta","clube_nome":"Clube","posicao_nome":"Posição",
+                             "jogos":"Jogos"}
+                ),
+                column_config={
+                    "Atleta":   st.column_config.TextColumn(width="medium"),
+                    "preco_ini":st.column_config.NumberColumn("C$ Início", format="%.2f"),
+                    "preco_fim":st.column_config.NumberColumn("C$ Atual",  format="%.2f"),
+                    "delta_total": st.column_config.NumberColumn("Δ C$",  format="%+.2f"),
+                    "delta_pct":   st.column_config.NumberColumn("Δ %",   format="%+.1f%%"),
+                    "Jogos":       st.column_config.NumberColumn(format="%d"),
+                },
+                hide_index=True, width="stretch",
+            )
+
+    with val_tab2:
+        sec("CURVA DE PREÇO — TOP VALORIZADOS DA TEMPORADA")
+        st.caption("Exibe automaticamente os 10 atletas com maior valorização total. Use o filtro para personalizar.")
+
+        if df_val.empty:
+            st.info("Necessário pelo menos 2 rodadas com preços válidos.")
+        else:
+            # Default: top 10 mais valorizados — sem multiselect obrigatório
+            cf1, cf2 = st.columns([3,1])
+            with cf1:
+                auto_top10 = list(df_val.sort_values("delta_total", ascending=False).head(10)["apelido"])
+                sel_curva  = st.multiselect(
+                    "Personalizar atletas (opcional):", sorted(df_pv["apelido"].unique()),
+                    default=[], max_selections=12, key="curva_sel",
+                    placeholder="Deixe vazio para ver Top 10 valorizados automaticamente"
+                )
+            with cf2:
+                pos_curva = st.multiselect("Posição:", sorted(df_val["posicao_nome"].unique()),
+                                           default=sorted(df_val["posicao_nome"].unique()), key="curva_pos")
+
+            atletas_plot = sel_curva if sel_curva else auto_top10
+            # Filtra por posição se necessário
+            validos_pos  = df_val[df_val["posicao_nome"].isin(pos_curva)]["apelido"].tolist()
+            atletas_plot = [a for a in atletas_plot if a in validos_pos] or auto_top10[:5]
+
+            df_curva = df_pv[df_pv["apelido"].isin(atletas_plot)].copy()
             df_curva = df_curva.groupby(["rodada_id","apelido"])["preco"].last().reset_index()
+
             fig_curva = px.line(
                 df_curva, x="rodada_id", y="preco", color="apelido",
                 labels={"rodada_id":"Rodada","preco":"Preço (C$)","apelido":"Atleta"},
                 markers=True, color_discrete_sequence=COLORS,
             )
             themed(fig_curva)
-            fig_curva.update_traces(line=dict(width=2))
+            fig_curva.update_traces(line=dict(width=2.5), marker=dict(size=6))
+            fig_curva.update_layout(
+                xaxis=dict(tickmode="linear", dtick=1, title="Rodada",
+                           gridcolor="#F3F4F6", linecolor="#E4E6EB", tickfont=dict(color="#6B7280")),
+            )
             st.plotly_chart(fig_curva, width="stretch")
-        else:
-            st.info("Selecione ao menos um atleta.")
 
-    with val_tab2:
-        sec("ATLETAS QUE MAIS VALORIZARAM (ΔTOTAL)")
-        if len(rodadas_ord) >= 2:
-            df_val = df.groupby("atleta_id").agg(
-                apelido=("apelido","last"),
-                clube_nome=("clube_nome","last"),
-                posicao_nome=("posicao_nome","last"),
-                preco_ini=("preco","first"),
-                preco_fim=("preco","last"),
-                jogos=("rodada_id","count"),
-            ).reset_index()
-            df_val["delta_total"] = df_val["preco_fim"] - df_val["preco_ini"]
-            df_val["delta_pct"]   = ((df_val["delta_total"] / df_val["preco_ini"]) * 100).replace([np.inf,-np.inf], 0).fillna(0)
-            top_val = df_val.sort_values("delta_total", ascending=False).head(20)
-            fig_val = px.bar(
-                top_val, x="apelido", y="delta_total", color="posicao_nome",
-                text=top_val["delta_total"].apply(lambda v: f"+C${v:.2f}"),
-                labels={"apelido":"Atleta","delta_total":"Δ Preço (C$)","posicao_nome":"Posição"},
-                color_discrete_sequence=COLORS,
-            )
-            themed(fig_val); fig_val.update_layout(xaxis_tickangle=-45)
-            fig_val.update_traces(textposition="outside")
-            st.plotly_chart(fig_val, width="stretch")
-            st.dataframe(
-                top_val[["apelido","clube_nome","posicao_nome","preco_ini","preco_fim","delta_total","delta_pct","jogos"]],
+            # Mini tabela de referência ao lado do gráfico
+            ref = df_val[df_val["apelido"].isin(atletas_plot)][["apelido","preco_ini","preco_fim","delta_total","delta_pct"]].sort_values("delta_total", ascending=False)
+            st.dataframe(ref.rename(columns={"apelido":"Atleta","preco_ini":"C$ Início","preco_fim":"C$ Atual","delta_total":"Δ C$","delta_pct":"Δ %"}),
                 column_config={
-                    "apelido":     "Atleta",
-                    "clube_nome":  "Clube",
-                    "posicao_nome":"Posição",
-                    "preco_ini":   st.column_config.NumberColumn("C$ Início", format="%.2f"),
-                    "preco_fim":   st.column_config.NumberColumn("C$ Atual",  format="%.2f"),
-                    "delta_total": st.column_config.NumberColumn("Δ Total",   format="%+.2f"),
-                    "delta_pct":   st.column_config.NumberColumn("Δ %",       format="%+.1f%%"),
-                    "jogos":       st.column_config.NumberColumn("Jogos",     format="%d"),
-                },
-                hide_index=True, width="stretch",
-            )
-        else:
-            st.info("Necessário pelo menos 2 rodadas para calcular valorização.")
+                    "C$ Início": st.column_config.NumberColumn(format="%.2f"),
+                    "C$ Atual":  st.column_config.NumberColumn(format="%.2f"),
+                    "Δ C$":      st.column_config.NumberColumn(format="%+.2f"),
+                    "Δ %":       st.column_config.NumberColumn(format="%+.1f%%"),
+                }, hide_index=True, width="stretch")
 
     with val_tab3:
-        sec("ATLETAS QUE MAIS DESVALORIZARAM (ΔTOTAL)")
-        if len(rodadas_ord) >= 2:
-            bot_val = df_val.sort_values("delta_total", ascending=True).head(20)
-            fig_desval = px.bar(
-                bot_val, x="apelido", y="delta_total", color="posicao_nome",
-                text=bot_val["delta_total"].apply(lambda v: f"C${v:.2f}"),
-                labels={"apelido":"Atleta","delta_total":"Δ Preço (C$)","posicao_nome":"Posição"},
-                color_discrete_sequence=COLORS,
-            )
-            themed(fig_desval); fig_desval.update_layout(xaxis_tickangle=-45)
-            fig_desval.update_traces(textposition="outside")
-            st.plotly_chart(fig_desval, width="stretch")
+        sec("MAPA DE CALOR — ΔPREÇO POR ATLETA × RODADA")
+        st.caption("Verde = valorizou, Vermelho = desvalorizou, Cinza = sem dado.")
+
+        if df_val.empty or len(rodadas_ord) < 2:
+            st.info("Necessário pelo menos 2 rodadas.")
         else:
-            st.info("Necessário pelo menos 2 rodadas para calcular valorização.")
+            # Calcula delta rodada a rodada para cada atleta
+            pos_heat = st.multiselect("Posição:", sorted(df_val["posicao_nome"].unique()),
+                                      default=["Atacante","Meia"], key="heat_pos")
+            top_n_heat = st.slider("Top N atletas (por média):", 10, 50, 20, key="heat_n")
+
+            atletas_heat = (df_agrupado[df_agrupado["posicao_nome"].isin(pos_heat)]
+                            .sort_values("media_geral", ascending=False)
+                            .head(top_n_heat)["apelido"].tolist())
+
+            df_ph = df_pv[df_pv["apelido"].isin(atletas_heat)].sort_values(["atleta_id","rodada_id"])
+            df_ph["delta_rod"] = df_ph.groupby("atleta_id")["preco"].diff()
+
+            if not df_ph.empty:
+                piv_heat = df_ph.pivot_table(index="apelido", columns="rodada_id",
+                                             values="delta_rod", aggfunc="mean").fillna(0)
+                fig_heat = px.imshow(
+                    piv_heat,
+                    color_continuous_scale=[[0,"#E03E3E"],[0.5,"#F9FAFB"],[1,"#00A878"]],
+                    color_continuous_midpoint=0,
+                    text_auto="+.2f",
+                    labels={"x":"Rodada","y":"Atleta","color":"Δ C$"},
+                    aspect="auto",
+                )
+                themed(fig_heat)
+                fig_heat.update_layout(
+                    xaxis=dict(title="Rodada", gridcolor="#F3F4F6"),
+                    yaxis=dict(title=""),
+                    coloraxis_colorbar=dict(title="Δ C$"),
+                )
+                st.plotly_chart(fig_heat, width="stretch")
+            else:
+                st.info("Sem dados suficientes para o mapa de calor com os filtros selecionados.")
 
 # ──────────────────────────────────────────────────────────────
 # TAB 9 — ML (era tab10)
@@ -1553,33 +1764,60 @@ with tab9:
             for f in FEATS_ML:
                 if f not in df.columns: df[f] = 0
 
-            df_ml = df.sort_values(["atleta_id","rodada_id"]).copy()
+            df_ml = df[df["preco"] > 0].sort_values(["atleta_id","rodada_id"]).copy()
             df_ml["preco_prox"]  = df_ml.groupby("atleta_id")["preco"].shift(-1)
             df_ml["delta_preco"] = df_ml["preco_prox"] - df_ml["preco"]
-            df_ml = df_ml.dropna(subset=["delta_preco"]+FEATS_ML)
+            # Treina apenas com variações reais — remove linhas onde delta=0
+            # (preço estático não ensina nada ao modelo)
+            df_ml = df_ml.dropna(subset=["delta_preco"] + FEATS_ML)
+            df_ml_treino = df_ml[df_ml["delta_preco"] != 0].copy()
 
-            X = df_ml[FEATS_ML].values
-            y = df_ml["delta_preco"].values
+            X_all = df_ml[FEATS_ML].values
+            y_all = df_ml["delta_preco"].values
+            X_tr  = df_ml_treino[FEATS_ML].values
+            y_tr  = df_ml_treino["delta_preco"].values
 
-            if len(X) < 30:
-                st.warning("Dados insuficientes para treinar o modelo. Aguarde mais rodadas.")
+            pct_com_variacao = len(df_ml_treino) / max(len(df_ml), 1) * 100
+
+            if len(X_tr) < 20:
+                st.warning(
+                    f"Poucas variações de preço detectadas ({len(df_ml_treino)} linhas com Δ≠0 "
+                    f"de {len(df_ml)} total = {pct_com_variacao:.0f}%). "
+                    "O modelo precisa de mais rodadas com preços variando para ser confiável. "
+                    "Isso é normal nas primeiras rodadas da temporada."
+                )
             else:
-                modelo = Pipeline([("sc", StandardScaler()), ("ridge", Ridge(alpha=1.0))])
-                modelo.fit(X, y)
+                # Treina com linhas que tiveram variação real
+                modelo = Pipeline([("sc", StandardScaler()), ("ridge", Ridge(alpha=0.5))])
+                modelo.fit(X_tr, y_tr)
+
                 X_pred = np.column_stack([
                     df_agrupado[f].values if f in df_agrupado.columns else np.zeros(len(df_agrupado))
                     for f in FEATS_ML
                 ])
                 df_agrupado["delta_pred"] = modelo.predict(X_pred)
                 coef    = modelo.named_steps["ridge"].coef_
-                df_coef = pd.DataFrame({"Feature":FEATS_ML,"Importância":np.abs(coef)}).sort_values("Importância")
+                df_coef = pd.DataFrame({"Feature": FEATS_ML, "Importância": np.abs(coef)}).sort_values("Importância")
 
-                col_p, col_i = st.columns([3,2])
+                # Métricas de qualidade do modelo
+                from sklearn.metrics import mean_absolute_error
+                y_hat = modelo.predict(X_tr)
+                mae   = mean_absolute_error(y_tr, y_hat)
+
+                m1, m2, m3 = st.columns(3)
+                m1.metric("Linhas de treino",    f"{len(df_ml_treino)}")
+                m2.metric("MAE do modelo",       f"C$ {mae:.3f}", help="Erro médio absoluto — quanto o modelo erra em média")
+                m3.metric("Registros c/ Δ≠0",    f"{pct_com_variacao:.0f}%")
+
+                col_p, col_i = st.columns([3, 2])
                 with col_p:
                     st.markdown("#### Top valorizações previstas")
-                    top_pred = df_agrupado[["apelido","clube_nome","posicao_nome","preco","status_txt","delta_pred",
-                                            "delta_preco_real"]]\
-                        .sort_values("delta_pred", ascending=False).head(15)
+                    top_pred = (
+                        df_agrupado[["apelido","clube_nome","posicao_nome","preco","status_txt",
+                                     "delta_pred","delta_preco_real"]]
+                        .sort_values("delta_pred", ascending=False)
+                        .head(15)
+                    )
                     st.dataframe(top_pred,
                         column_config={
                             "apelido":          "Atleta",
@@ -1594,45 +1832,66 @@ with tab9:
                     st.markdown("#### Fatores mais relevantes")
                     fig_imp = px.bar(df_coef, x="Importância", y="Feature", orientation="h",
                                      color="Importância", color_continuous_scale="Greens")
-                    themed(fig_imp); fig_imp.update_layout(showlegend=False, yaxis_title="")
+                    _ti = {k: v for k, v in THEME.items() if k != "yaxis"}
+                    fig_imp.update_layout(**_ti, showlegend=False,
+                                         yaxis=dict(title="", gridcolor="#F3F4F6"))
                     st.plotly_chart(fig_imp, width="stretch")
-                st.info("⚠️ Estimativa baseada em padrões históricos. Use como sinal complementar.")
+                st.info(
+                    f"⚠️ Modelo treinado com {len(df_ml_treino)} observações reais de variação de preço. "
+                    "Resultados ficam mais precisos conforme mais rodadas são acumuladas. "
+                    "Use como sinal complementar, não como verdade absoluta."
+                )
         except ImportError:
             st.error("❌ `scikit-learn` não instalado. Adicione ao `requirements.txt` e faça o redeploy.")
 
     with opt_tab:
         st.markdown("### 📊 Histórico de Scouts por Atleta")
-        st.caption("Evolução rodada a rodada de scouts individuais. Selecione um atleta para inspecionar.")
+        st.caption("Selecione um atleta e os scouts para ver a evolução rodada a rodada.")
+
+        def _render_scout_history(apelido_sel: str):
+            """Renderiza gráfico + tabela de scouts de um atleta."""
+            scouts_disp = [s for s in SCOUTS if s in df.columns]
+            sel_sc = st.multiselect(
+                "Scouts:", scouts_disp,
+                default=["G","A","DS","FC","CA"],
+                key=f"sc_{apelido_sel}"
+            )
+            if not sel_sc:
+                return
+            df_hist = df[df["apelido"] == apelido_sel].sort_values("rodada_id")
+            cols_hist = ["rodada_id"] + sel_sc + ["pontos","adversario","mando"]
+            df_hist = df_hist[[c for c in cols_hist if c in df_hist.columns]]
+            if df_hist.empty:
+                st.warning("Sem histórico para este atleta.")
+                return
+            fig_sc = go.Figure()
+            for s in sel_sc:
+                if s in df_hist.columns:
+                    fig_sc.add_trace(go.Bar(name=s, x=df_hist["rodada_id"], y=df_hist[s], opacity=0.75))
+            fig_sc.add_trace(go.Scatter(
+                name="Pontos", x=df_hist["rodada_id"], y=df_hist["pontos"],
+                mode="lines+markers", line=dict(color="#E09B00", width=2.5),
+                marker=dict(size=6), yaxis="y2",
+            ))
+            _tsc = {k: v for k, v in THEME.items() if k not in ("xaxis","yaxis")}
+            fig_sc.update_layout(
+                **_tsc, barmode="stack",
+                xaxis=dict(title="Rodada", tickmode="linear", dtick=1,
+                           gridcolor="#F3F4F6", linecolor="#E4E6EB", tickfont=dict(color="#6B7280")),
+                yaxis=dict(title="Scouts", gridcolor="#F3F4F6", linecolor="#E4E6EB",
+                           tickfont=dict(color="#6B7280")),
+                yaxis2=dict(title="Pontos", overlaying="y", side="right",
+                            showgrid=False, tickfont=dict(color="#E09B00")),
+                height=340,
+            )
+            st.plotly_chart(fig_sc, width="stretch")
+            st.dataframe(
+                df_hist.rename(columns={"rodada_id":"Rodada","pontos":"Pts",
+                                        "adversario":"Adversário","mando":"Mando"}),
+                hide_index=True, width="stretch",
+            )
+
         atletas_todos = sorted(df_agrupado["apelido"].unique())
         sel_scout_atl = st.selectbox("Atleta:", atletas_todos, key="scout_hist_atl")
-        scouts_disp   = [s for s in SCOUTS if s in df.columns]
-        sel_scouts    = st.multiselect("Scouts:", scouts_disp, default=["G","A","DS","FC","CA"], key="scout_sel")
-
-        if sel_scout_atl and sel_scouts:
-            df_hist_at = df[df["apelido"] == sel_scout_atl].sort_values("rodada_id")[["rodada_id"] + sel_scouts + ["pontos","adversario","mando"]]
-            if df_hist_at.empty:
-                st.warning("Sem histórico para este atleta.")
-            else:
-                # Linha de pontos + barras de scouts
-                fig_sc = go.Figure()
-                for s in sel_scouts:
-                    fig_sc.add_trace(go.Bar(name=s, x=df_hist_at["rodada_id"], y=df_hist_at[s], opacity=0.7))
-                fig_sc.add_trace(go.Scatter(
-                    name="Pontos", x=df_hist_at["rodada_id"], y=df_hist_at["pontos"],
-                    mode="lines+markers", line=dict(color="#E09B00", width=2),
-                    yaxis="y2",
-                ))
-                _theme_sc = {k: v for k, v in THEME.items() if k not in ("xaxis", "yaxis")}
-                fig_sc.update_layout(
-                    **_theme_sc,
-                    barmode="stack",
-                    xaxis=dict(title="Rodada", gridcolor="#F3F4F6", linecolor="#E4E6EB", tickfont=dict(color="#6B7280")),
-                    yaxis=dict(title="Scouts", gridcolor="#F3F4F6", linecolor="#E4E6EB", tickfont=dict(color="#6B7280")),
-                    yaxis2=dict(title="Pontos", overlaying="y", side="right", showgrid=False, tickfont=dict(color="#E09B00")),
-                )
-                st.plotly_chart(fig_sc, width="stretch")
-
-                st.dataframe(
-                    df_hist_at.rename(columns={"rodada_id":"Rodada","pontos":"Pts","adversario":"Adv","mando":"Mando"}),
-                    hide_index=True, width="stretch",
-                )
+        if sel_scout_atl:
+            _render_scout_history(sel_scout_atl)
