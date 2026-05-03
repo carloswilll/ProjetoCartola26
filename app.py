@@ -211,6 +211,14 @@ def themed(fig):
     fig.update_layout(**THEME)
     return fig
 
+# Chaves do THEME que conflitam quando o caller já define xaxis/yaxis/margin
+_THEME_CONFLICT_KEYS = {"xaxis", "yaxis", "margin"}
+
+def theme_ex(*exclude):
+    """Retorna THEME sem as chaves conflitantes. Uso: **theme_ex('yaxis','margin')"""
+    keys = _THEME_CONFLICT_KEYS | set(exclude)
+    return {k: v for k, v in THEME.items() if k not in keys}
+
 # ══════════════════════════════════════════════════════════════
 # 3. HELPERS
 # ══════════════════════════════════════════════════════════════
@@ -735,18 +743,19 @@ rodadas_ord = sorted(df["rodada_id"].unique())
 df_preco_valido = df[df["preco"] > 0][["atleta_id","rodada_id","preco"]].copy()
 
 if len(rodadas_ord) >= 2 and not df_preco_valido.empty:
-    # Último preço válido por atleta
-    df_preco_sorted = df_preco_valido.sort_values(["atleta_id","rodada_id"])
-    df_preco_last   = df_preco_sorted.groupby("atleta_id").last().reset_index()[["atleta_id","preco"]].rename(columns={"preco":"preco_ult"})
-    # Penúltimo preço válido por atleta
-    def _penultimo(g):
-        g2 = g.sort_values("rodada_id")
-        return g2.iloc[-2]["preco"] if len(g2) >= 2 else g2.iloc[-1]["preco"]
-    df_preco_pen = df_preco_sorted.groupby("atleta_id").apply(_penultimo).reset_index()
-    df_preco_pen.columns = ["atleta_id","preco_pen"]
+    # Vetorizado: rank descrescente por rodada dentro de cada atleta
+    df_pv2 = df_preco_valido.sort_values(["atleta_id","rodada_id"]).copy()
+    df_pv2["_rank"] = df_pv2.groupby("atleta_id")["rodada_id"].rank(method="first", ascending=False)
+
+    df_preco_last = (df_pv2[df_pv2["_rank"] == 1]
+                     [["atleta_id","preco"]].rename(columns={"preco":"preco_ult"}))
+    df_preco_pen  = (df_pv2[df_pv2["_rank"] == 2]
+                     [["atleta_id","preco"]].rename(columns={"preco":"preco_pen"}))
 
     df_delta = df_preco_last.merge(df_preco_pen, on="atleta_id", how="left")
-    df_delta["delta_preco_real"] = df_delta["preco_ult"] - df_delta["preco_pen"].fillna(df_delta["preco_ult"])
+    df_delta["delta_preco_real"] = (
+        df_delta["preco_ult"] - df_delta["preco_pen"].fillna(df_delta["preco_ult"])
+    ).round(2)
     df_agrupado = df_agrupado.merge(df_delta[["atleta_id","delta_preco_real"]], on="atleta_id", how="left")
     df_agrupado["delta_preco_real"] = df_agrupado["delta_preco_real"].fillna(0.0)
 else:
@@ -1116,7 +1125,7 @@ with tab2:
             fig.add_trace(go.Scatterpolar(r=v2+[v2[0]], theta=cats+[cats[0]], fill="toself", name=p2,
                                           line=dict(color="#1A6EFF",width=2), fillcolor="rgba(26,110,255,0.12)"))
             fig.update_layout(
-                **{k: v for k, v in THEME.items() if k not in ("xaxis","yaxis")},
+                **theme_ex("xaxis","yaxis"),
                 polar=dict(bgcolor="rgba(0,0,0,0)",
                            radialaxis=dict(visible=True, gridcolor="#E4E6EB"),
                            angularaxis=dict(gridcolor="#E4E6EB")),
@@ -1162,7 +1171,7 @@ with tab3:
         fig_pts = px.bar(stats_mando, x="clube_nome", y="pontos", color="mando", barmode="group",
                          labels={"pontos":"Média","clube_nome":"Time"},
                          color_discrete_map={"CASA":"#00A878","FORA":"#1A6EFF"})
-        themed(fig_pts); fig_pts.update_layout(xaxis_tickangle=-45)
+        fig_pts.update_layout(**theme_ex("xaxis"), xaxis_tickangle=-45)
         st.plotly_chart(fig_pts, width="stretch")
 
 # ──────────────────────────────────────────────────────────────
@@ -1274,10 +1283,9 @@ with tab4:
                     fig_sc_bar = px.bar(sc_df, x="Scout", y="Total", text="Total",
                                         color="Total", color_continuous_scale="Greens",
                                         height=200)
-                    _tb = {k: v for k, v in THEME.items() if k != "yaxis"}
-                    fig_sc_bar.update_layout(**_tb, showlegend=False,
-                                            yaxis=dict(title="", gridcolor="#F3F4F6"),
-                                            margin=dict(l=0,r=0,t=20,b=0))
+                    fig_sc_bar.update_layout(**theme_ex("yaxis","margin"), showlegend=False,
+                                        yaxis=dict(title="", gridcolor="#F3F4F6"),
+                                        margin=dict(l=0,r=0,t=20,b=0))
                     fig_sc_bar.update_traces(textposition="outside")
                     st.plotly_chart(fig_sc_bar, width="stretch")
 
@@ -1303,7 +1311,7 @@ with tab4:
                             mode="lines+markers", line=dict(color="#E09B00", width=2.5),
                             marker=dict(size=6), yaxis="y2",
                         ))
-                        _td = {k: v for k, v in THEME.items() if k not in ("xaxis","yaxis")}
+                        _td = theme_ex("xaxis","yaxis")
                         fig_drill.update_layout(
                             **_td, barmode="stack", height=300,
                             xaxis=dict(title="Rodada", tickmode="linear", dtick=1,
@@ -1563,7 +1571,7 @@ with tab7:
                                    y=df_top20["media_geral"], marker_color="#E4E6EB"))
         fig_forma.add_trace(go.Bar(name=f"Últ. {n_rec} rod.", x=df_top20["apelido"],
                                    y=df_top20["media_rec"], marker_color="#00A878"))
-        fig_forma.update_layout(**THEME, barmode="group", xaxis_tickangle=-45)
+        fig_forma.update_layout(**theme_ex(), barmode="group", xaxis_tickangle=-45)
         st.plotly_chart(fig_forma, width="stretch")
 
 # ──────────────────────────────────────────────────────────────
@@ -1577,16 +1585,25 @@ with tab8:
     df_pv = df[df["preco"] > 0][["atleta_id","rodada_id","apelido","clube_nome","posicao_nome","preco"]].copy()
 
     if len(rodadas_ord) >= 2 and not df_pv.empty:
-        # Primeiro e último preço válido por atleta
-        df_pv_sorted = df_pv.sort_values(["atleta_id","rodada_id"])
-        df_ini = df_pv_sorted.groupby("atleta_id").first().reset_index()[["atleta_id","preco","rodada_id"]].rename(columns={"preco":"preco_ini","rodada_id":"rodada_ini"})
-        df_fim = df_pv_sorted.groupby("atleta_id").last().reset_index()[["atleta_id","preco","rodada_id","apelido","clube_nome","posicao_nome"]].rename(columns={"preco":"preco_fim","rodada_id":"rodada_fim"})
+        # Vetorizado — sem groupby.apply que tem problemas no pandas 2.x
+        df_pv_sorted = df_pv.sort_values(["atleta_id","rodada_id"]).copy()
+        df_pv_sorted["_rank_asc"]  = df_pv_sorted.groupby("atleta_id")["rodada_id"].rank(method="first", ascending=True)
+        df_pv_sorted["_rank_desc"] = df_pv_sorted.groupby("atleta_id")["rodada_id"].rank(method="first", ascending=False)
+
+        df_ini = (df_pv_sorted[df_pv_sorted["_rank_asc"] == 1]
+                  [["atleta_id","preco"]].rename(columns={"preco":"preco_ini"}))
+        df_fim = (df_pv_sorted[df_pv_sorted["_rank_desc"] == 1]
+                  [["atleta_id","preco","apelido","clube_nome","posicao_nome"]]
+                  .rename(columns={"preco":"preco_fim"}))
         jogos_count = df.groupby("atleta_id")["rodada_id"].count().reset_index().rename(columns={"rodada_id":"jogos"})
 
-        df_val = df_fim.merge(df_ini, on="atleta_id").merge(jogos_count, on="atleta_id")
-        df_val["delta_total"] = df_val["preco_fim"] - df_val["preco_ini"]
-        df_val["delta_pct"]   = ((df_val["delta_total"] / df_val["preco_ini"]) * 100).replace([np.inf,-np.inf], 0).fillna(0)
-        df_val = df_val[df_val["jogos"] >= 2]  # só atletas com ao menos 2 rodadas
+        df_val = (df_fim
+                  .merge(df_ini, on="atleta_id", how="left")
+                  .merge(jogos_count, on="atleta_id", how="left"))
+        df_val["preco_ini"]   = df_val["preco_ini"].fillna(df_val["preco_fim"])
+        df_val["delta_total"] = (df_val["preco_fim"] - df_val["preco_ini"]).round(2)
+        df_val["delta_pct"]   = ((df_val["delta_total"] / df_val["preco_ini"].replace(0, np.nan)) * 100).fillna(0).round(1)
+        df_val = df_val[df_val["jogos"] >= 2]
     else:
         df_val = pd.DataFrame()
 
@@ -1832,7 +1849,7 @@ with tab9:
                     st.markdown("#### Fatores mais relevantes")
                     fig_imp = px.bar(df_coef, x="Importância", y="Feature", orientation="h",
                                      color="Importância", color_continuous_scale="Greens")
-                    _ti = {k: v for k, v in THEME.items() if k != "yaxis"}
+                    _ti = theme_ex("yaxis")
                     fig_imp.update_layout(**_ti, showlegend=False,
                                          yaxis=dict(title="", gridcolor="#F3F4F6"))
                     st.plotly_chart(fig_imp, width="stretch")
@@ -1873,7 +1890,7 @@ with tab9:
                 mode="lines+markers", line=dict(color="#E09B00", width=2.5),
                 marker=dict(size=6), yaxis="y2",
             ))
-            _tsc = {k: v for k, v in THEME.items() if k not in ("xaxis","yaxis")}
+            _tsc = theme_ex("xaxis","yaxis")
             fig_sc.update_layout(
                 **_tsc, barmode="stack",
                 xaxis=dict(title="Rodada", tickmode="linear", dtick=1,
